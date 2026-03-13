@@ -2,10 +2,13 @@
 .DS_Store
 Thumbs.db
 
-# Build files (opcional, podés incluirlos si querés)
+# MozJPEG source (NO incluir en el repo)
+src/mozjpeg/
+
+# Build intermedios
 build/
 
-# Node modules (si llegás a usar npm)
+# Node modules
 node_modules/
 
 # IDE
