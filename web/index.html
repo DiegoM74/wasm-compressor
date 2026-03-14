@@ -25,12 +25,31 @@
         multiple
       />
     </div>
-    <div class="controls">
-      <button id="compress-btn" disabled>Comprimir Todo</button>
-      <button id="download-btn" disabled>Descargar</button>
+    <div class="controls-group">
+      <div class="controls-main">
+        <div class="controls">
+          <button id="compress-btn" disabled>Comprimir (General)</button>
+          <button id="download-btn" disabled>Descargar</button>
+        </div>
+      </div>
+      <div class="controls-libs">
+        <div class="controls-lib">
+          <span class="lib-label">MozJPEG:</span>
+          <button id="compress-mozjpeg-btn" disabled>Comprimir</button>
+          <button id="download-mozjpeg-btn" disabled>Descargar</button>
+        </div>
+        <div class="controls-lib">
+          <span class="lib-label">Jpegli:</span>
+          <button id="compress-jpegli-btn" disabled>Comprimir</button>
+          <button id="download-jpegli-btn" disabled>Descargar</button>
+        </div>
+      </div>
     </div>
     <div id="status">Esperando imágenes...</div>
     <div id="stats"></div>
+    <div id="list-actions" class="list-actions">
+      <button id="clear-all-btn" class="delete-btn">Eliminar todas las imágenes</button>
+    </div>
     <div id="image-list"></div>
     <script src="main.js?v=2"></script>
   </body>
