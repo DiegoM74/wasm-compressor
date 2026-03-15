@@ -8,7 +8,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=1.4" />
+    <link rel="stylesheet" href="styles.css?v=1.5" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   </head>
   <body>
@@ -130,11 +130,43 @@
     <div id="modal-jpegli" class="modal">
       <div class="modal-content">
         <h2>Configuración Jpegli</h2>
+        <p
+          style="
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+          "
+        >
+          Ajusta los parámetros de compresión. Pasa el cursor sobre el ícono
+          <span
+            style="
+              display: inline-block;
+              width: 18px;
+              height: 18px;
+              border-radius: 50%;
+              background: var(--text-secondary);
+              color: var(--bg-color);
+              text-align: center;
+              line-height: 18px;
+              font-size: 12px;
+              font-weight: bold;
+            "
+            >?</span
+          >
+          para más detalles.
+        </p>
         <div class="modal-body">
+          <!-- Calidad -->
           <div class="form-group">
-            <label for="jpegli-quality"
-              >Calidad (0-100): <span id="jpegli-quality-value">85</span></label
-            >
+            <label>
+              Calidad
+              <span
+                class="help-icon"
+                title="Controla la relación calidad/tamaño. Valores más altos = mejor calidad, archivo más grande."
+                >?</span
+              >
+              <span id="jpegli-quality-value">85</span>
+            </label>
             <input
               type="range"
               id="jpegli-quality"
@@ -144,29 +176,34 @@
               class="slider"
             />
           </div>
+
+          <!-- Subsampling -->
           <div class="form-group">
-            <label>Subsampling:</label>
+            <label>
+              Subsampling
+              <span
+                class="help-icon"
+                title="Reduce la información de color. 4:4:4 = máxima calidad, 4:2:0 = mayor compresión (pérdida de color)."
+                >?</span
+              >
+            </label>
             <select id="jpegli-subsampling">
               <option value="0">4:4:4 (mejor calidad)</option>
               <option value="1">4:2:2</option>
               <option value="2" selected>4:2:0 (mejor compresión)</option>
             </select>
           </div>
+
+          <!-- Progresivo -->
           <div class="form-group">
-            <label
-              ><input type="checkbox" id="jpegli-optimize-coding" checked />
-              Optimizar codificación</label
-            >
-          </div>
-          <div class="form-group">
-            <label
-              ><input type="checkbox" id="jpegli-allow-chroma-gray" checked />
-              Permitir croma en grises</label
-            >
-          </div>
-          <!-- Nivel progresivo -->
-          <div class="form-group">
-            <label>Progresivo:</label>
+            <label>
+              Progresivo
+              <span
+                class="help-icon"
+                title="Carga la imagen en múltiples pasadas (mejor para web, pero puede aumentar tamaño)."
+                >?</span
+              >
+            </label>
             <select id="jpegli-progressive-level">
               <option value="0">No progresivo</option>
               <option value="1" selected>Básico</option>
@@ -174,63 +211,153 @@
             </select>
           </div>
 
-          <!-- Suavizado -->
-          <div class="form-group">
-            <label for="jpegli-smoothing-factor"
-              >Suavizado (0-100):
-              <span id="jpegli-smoothing-value">0</span></label
+          <!-- Optimización (colapsable) -->
+          <div class="accordion-section">
+            <button
+              type="button"
+              class="accordion-header"
+              aria-expanded="false"
             >
-            <input
-              type="range"
-              id="jpegli-smoothing-factor"
-              min="0"
-              max="100"
-              value="0"
-              class="slider"
-            />
+              <span style="font-weight: bold; color: var(--accent-primary)"
+                >Optimización</span
+              >
+              <span class="accordion-arrow"></span>
+            </button>
+            <div class="accordion-body">
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="jpegli-optimize-coding" checked />
+                  Optimizar codificación
+                  <span
+                    class="help-icon"
+                    title="Aplica optimizaciones adicionales de Huffman (recomendado)."
+                    >?</span
+                  >
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    id="jpegli-allow-chroma-gray"
+                    checked
+                  />
+                  Permitir croma en grises
+                  <span
+                    class="help-icon"
+                    title="Mantiene información de color en imágenes en escala de grises (puede mejorar compresión)."
+                    >?</span
+                  >
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="jpegli-adaptive-quant" checked />
+                  Cuantización adaptativa
+                  <span
+                    class="help-icon"
+                    title="Ajusta la cuantización según el contenido de la imagen (mejora calidad percibida)."
+                    >?</span
+                  >
+                </label>
+              </div>
+            </div>
           </div>
 
-          <!-- Método DCT -->
-          <div class="form-group">
-            <label>Método DCT:</label>
-            <select id="jpegli-dct-method">
-              <option value="0" selected>ISLOW (preciso)</option>
-              <option value="1">IFAST (rápido)</option>
-              <option value="2">FLOAT (flotante)</option>
-            </select>
-          </div>
-
-          <!-- Usar tablas estándar (puede no tener efecto) -->
-          <div class="form-group">
-            <label
-              ><input type="checkbox" id="jpegli-use-std-tables" /> Usar tablas
-              estándar</label
+          <!-- Avanzado (colapsable) -->
+          <div class="accordion-section">
+            <button
+              type="button"
+              class="accordion-header"
+              aria-expanded="false"
             >
-          </div>
-
-          <!-- Forzar baseline -->
-          <div class="form-group">
-            <label
-              ><input type="checkbox" id="jpegli-baseline" /> Forzar
-              baseline</label
-            >
-          </div>
-
-          <!-- Cuantización adaptativa (ya existente pero con nuevo ID) -->
-          <div class="form-group">
-            <label
-              ><input type="checkbox" id="jpegli-adaptive-quant" checked />
-              Cuantización adaptativa</label
-            >
+              <span style="font-weight: bold; color: var(--accent-primary)"
+                >Avanzado</span
+              >
+              <span class="accordion-arrow"></span>
+            </button>
+            <div class="accordion-body">
+              <div class="form-group">
+                <label>
+                  Suavizado
+                  <span
+                    class="help-icon"
+                    title="Aplica un filtro de suavizado (0 = ninguno, 100 = máximo). Útil para reducir artefactos."
+                    >?</span
+                  >
+                  <span id="jpegli-smoothing-value">0</span>
+                </label>
+                <input
+                  type="range"
+                  id="jpegli-smoothing-factor"
+                  min="0"
+                  max="100"
+                  value="0"
+                  class="slider"
+                />
+              </div>
+              <div class="form-group">
+                <label>
+                  Método DCT
+                  <span
+                    class="help-icon"
+                    title="Algoritmo de transformada: ISLOW (preciso), IFAST (rápido), FLOAT (flotante)."
+                    >?</span
+                  >
+                </label>
+                <select id="jpegli-dct-method">
+                  <option value="0" selected>ISLOW (preciso)</option>
+                  <option value="1">IFAST (rápido)</option>
+                  <option value="2">FLOAT (flotante)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="jpegli-use-std-tables" />
+                  Usar tablas estándar
+                  <span
+                    class="help-icon"
+                    title="Fuerza tablas de cuantización estándar (puede afectar compatibilidad)."
+                    >?</span
+                  >
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="jpegli-baseline" />
+                  Forzar baseline
+                  <span
+                    class="help-icon"
+                    title="Genera JPEG compatible con líneas base (no progresivo)."
+                    >?</span
+                  >
+                </label>
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button id="jpegli-apply" class="modal-btn">Aplicar</button>
           <button id="jpegli-cancel" class="modal-btn cancel">Cancelar</button>
+          <button id="jpegli-apply" class="modal-btn">Aplicar</button>
         </div>
       </div>
     </div>
 
     <script src="main.js?v=1.4"></script>
+
+    <script>
+      document.querySelectorAll(".accordion-header").forEach(function (header) {
+        header.addEventListener("click", function () {
+          var expanded = this.getAttribute("aria-expanded") === "true";
+          this.setAttribute("aria-expanded", !expanded);
+          var body = this.nextElementSibling;
+          if (!expanded) {
+            body.style.maxHeight = body.scrollHeight + "px";
+          } else {
+            body.style.maxHeight = "0";
+          }
+        });
+      });
+    </script>
   </body>
 </html>
