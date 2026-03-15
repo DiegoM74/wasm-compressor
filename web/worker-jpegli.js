@@ -1,34 +1,29 @@
-importScripts("./jpegli_encoder.js");
-
-var wasmReady = false;
-var heapU8 = null;
-
-var Module = {
+// Configurar el objeto Module antes de importar el script
+self.Module = {
   onRuntimeInitialized: function () {
-    wasmReady = true;
-    if (Module.HEAPU8) {
-      heapU8 = Module.HEAPU8;
-    } else if (Module.wasmMemory && Module.wasmMemory.buffer) {
-      heapU8 = new Uint8Array(Module.wasmMemory.buffer);
-    }
+    self.wasmReady = true;
+    self.heapU8 = self.Module.HEAPU8;
     console.log("Jpegli WASM ready");
     self.postMessage({ type: "ready" });
   },
 };
 
+importScripts("./jpegli_encoder.js");
+
 self.onmessage = function (e) {
-  if (!wasmReady) {
+  if (!self.wasmReady) {
     self.postMessage({ type: "error", message: "WASM not initialized" });
     return;
   }
 
-  const { imageBuffer, distance = 0.1, subsampling = 2 } = e.data;
+  const { imageBuffer, config } = e.data;
 
   if (!imageBuffer || imageBuffer.byteLength === 0) {
     self.postMessage({ type: "error", message: "Empty buffer" });
     return;
   }
 
+  // Validación rápida de JPEG
   const firstBytes = new Uint8Array(imageBuffer, 0, 2);
   if (firstBytes[0] !== 0xff || firstBytes[1] !== 0xd8) {
     self.postMessage({ type: "error", message: "Not a JPEG" });
@@ -36,44 +31,46 @@ self.onmessage = function (e) {
   }
 
   try {
-    const inputPtr = Module._malloc(imageBuffer.byteLength);
+    const inputPtr = self.Module._malloc(imageBuffer.byteLength);
     const imageArray = new Uint8Array(imageBuffer);
     for (let i = 0; i < imageBuffer.byteLength; i++) {
-      heapU8[inputPtr + i] = imageArray[i];
+      self.heapU8[inputPtr + i] = imageArray[i];
     }
 
-    // === CONFIGURACIÓN JPEGLI ===
-    const progressive = 0; // NO recomendado para Jpegli
-    const optimize_coding = 1; // SIEMPRE activado
-    const allow_chroma_gray = 1; // Activado para grayscale
-
-    const resultStructPtr = Module._compress_image_jpegli(
+    // Llamar a la función de compresión con todos los parámetros
+    const resultStructPtr = self.Module._compress_image_jpegli(
       inputPtr,
       imageBuffer.byteLength,
-      Math.fround(distance), // Convertir a float32 para que coincida con la firma C (float != double en WASM)
-      progressive,
-      subsampling,
-      optimize_coding,
-      allow_chroma_gray,
+      config.quality,
+      config.progressive_level,
+      config.subsampling,
+      config.optimize_coding ? 1 : 0,
+      config.allow_chroma_gray ? 1 : 0,
+      config.smoothing_factor,
+      config.dct_method,
+      config.use_standard_tables ? 1 : 0,
+      config.baseline ? 1 : 0,
+      config.adaptive_quantization ? 1 : 0,
     );
 
+    // Leer el resultado: estructura con dos enteros (puntero y tamaño)
     const dataPtr =
-      heapU8[resultStructPtr] |
-      (heapU8[resultStructPtr + 1] << 8) |
-      (heapU8[resultStructPtr + 2] << 16) |
-      (heapU8[resultStructPtr + 3] << 24);
+      self.heapU8[resultStructPtr] |
+      (self.heapU8[resultStructPtr + 1] << 8) |
+      (self.heapU8[resultStructPtr + 2] << 16) |
+      (self.heapU8[resultStructPtr + 3] << 24);
     const size =
-      heapU8[resultStructPtr + 4] |
-      (heapU8[resultStructPtr + 5] << 8) |
-      (heapU8[resultStructPtr + 6] << 16) |
-      (heapU8[resultStructPtr + 7] << 24);
+      self.heapU8[resultStructPtr + 4] |
+      (self.heapU8[resultStructPtr + 5] << 8) |
+      (self.heapU8[resultStructPtr + 6] << 16) |
+      (self.heapU8[resultStructPtr + 7] << 24);
 
     const outputBuffer = new Uint8Array(size);
     for (let i = 0; i < size; i++) {
-      outputBuffer[i] = heapU8[dataPtr + i];
+      outputBuffer[i] = self.heapU8[dataPtr + i];
     }
 
-    Module._free(inputPtr);
+    self.Module._free(inputPtr);
 
     self.postMessage(
       {

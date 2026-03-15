@@ -3,7 +3,7 @@
 #include <string.h>
 #include <jpegli/encode.h>
 #include <jpegli/decode.h>
-#include "lib/jpegli/common.h"  // Para jpegli_std_error
+#include "lib/jpegli/common.h"
 
 typedef struct {
     unsigned char* data;
@@ -15,25 +15,28 @@ static CompressedResult g_result = {NULL, 0};
 extern "C" {
 
 CompressedResult* compress_image_jpegli(
-    unsigned char* input_buffer, 
-    int input_size, 
-    float distance,
-    int progressive,
+    unsigned char* input_buffer,
+    int input_size,
+    int quality,
+    int progressive_level,
     int subsampling,
     int optimize_coding,
-    int allow_chroma_gray
+    int allow_chroma_gray,
+    int smoothing_factor,
+    int dct_method,
+    int use_standard_tables,   // se ignora
+    int baseline,
+    int adaptive_quantization
 ) {
     g_result.data = NULL;
     g_result.size = 0;
-    
-    // === DECODIFICAR CON JPEGLI ===
+
+    // Decodificar con Jpegli
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
     unsigned char *buffer = NULL;
     int stride;
 
-    // El error handler debe configurarse ANTES de jpegli_create_decompress
-    // Usar jpegli_std_error en vez de jpeg_std_error (no está en libjpegli-static.a)
     cinfo.err = jpegli_std_error(&jerr);
     jpegli_create_decompress(&cinfo);
 
@@ -42,7 +45,7 @@ CompressedResult* compress_image_jpegli(
         jpegli_destroy_decompress(&cinfo);
         return &g_result;
     }
-    
+
     jpegli_start_decompress(&cinfo);
 
     stride = cinfo.output_width * cinfo.output_components;
@@ -61,13 +64,12 @@ CompressedResult* compress_image_jpegli(
     jpegli_finish_decompress(&cinfo);
     jpegli_destroy_decompress(&cinfo);
 
-    // === CODIFICAR CON JPEGLI ===
+    // Codificar con Jpegli
     struct jpeg_compress_struct cinfo_out;
     struct jpeg_error_mgr jerr_out;
     unsigned char *out_buffer = NULL;
     unsigned long out_size = 0;
 
-    // El error handler debe configurarse ANTES de jpegli_create_compress
     cinfo_out.err = jpegli_std_error(&jerr_out);
     jpegli_create_compress(&cinfo_out);
 
@@ -76,21 +78,33 @@ CompressedResult* compress_image_jpegli(
     cinfo_out.image_width = width;
     cinfo_out.image_height = height;
     cinfo_out.input_components = components;
-    
+
     if (components == 3)
         cinfo_out.in_color_space = JCS_RGB;
     else
         cinfo_out.in_color_space = JCS_GRAYSCALE;
 
     jpegli_set_defaults(&cinfo_out);
-    jpegli_set_quality(&cinfo_out, 100, TRUE);
-    
-    // Progressive NO recomendado para Jpegli
-    if (progressive) {
-        jpegli_simple_progression(&cinfo_out);
-    }
-    
-    // Chroma subsampling
+    jpegli_set_quality(&cinfo_out, quality, TRUE);
+
+    // Asignar parámetros directamente en la estructura
+    cinfo_out.optimize_coding = optimize_coding ? TRUE : FALSE;
+    cinfo_out.progressive_mode = (progressive_level > 0) ? TRUE : FALSE;
+    cinfo_out.smoothing_factor = smoothing_factor;
+
+    // Método DCT
+    J_DCT_METHOD method;
+    if (dct_method == 0) method = JDCT_ISLOW;
+    else if (dct_method == 1) method = JDCT_IFAST;
+    else method = JDCT_FLOAT;
+    cinfo_out.dct_method = method;
+
+    cinfo_out.write_JFIF_header = baseline ? TRUE : FALSE;
+
+    // Cuantización adaptativa
+    jpegli_enable_adaptive_quantization(&cinfo_out, adaptive_quantization ? TRUE : FALSE);
+
+    // Subsampling de croma
     if (components == 3) {
         if (subsampling == 2) {  // 4:2:0
             cinfo_out.comp_info[0].h_samp_factor = 2;
@@ -107,6 +121,7 @@ CompressedResult* compress_image_jpegli(
             cinfo_out.comp_info[2].h_samp_factor = 1;
             cinfo_out.comp_info[2].v_samp_factor = 1;
         }
+        // subsampling == 0 es 4:4:4 (factores 1,1,1,1,1,1) que ya es el default
     }
 
     jpegli_start_compress(&cinfo_out, TRUE);

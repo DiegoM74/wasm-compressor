@@ -8,7 +8,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=1.2" />
+    <link rel="stylesheet" href="styles.css?v=1.4" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   </head>
   <body>
@@ -39,11 +39,25 @@
           <span class="lib-label">MozJPEG</span>
           <button id="compress-mozjpeg-btn" disabled>Comprimir</button>
           <button id="download-mozjpeg-btn" disabled>Descargar</button>
+          <button
+            id="config-mozjpeg-btn"
+            class="config-btn"
+            title="Configurar MozJPEG"
+          >
+            ⚙️
+          </button>
         </div>
         <div class="controls-lib">
           <span class="lib-label">Jpegli</span>
           <button id="compress-jpegli-btn" disabled>Comprimir</button>
           <button id="download-jpegli-btn" disabled>Descargar</button>
+          <button
+            id="config-jpegli-btn"
+            class="config-btn"
+            title="Configurar Jpegli"
+          >
+            ⚙️
+          </button>
         </div>
       </div>
     </div>
@@ -55,6 +69,168 @@
       </button>
     </div>
     <div id="image-list"></div>
-    <script src="main.js?v=1.2"></script>
+
+    <!-- Modal para configuración de MozJPEG -->
+    <div id="modal-mozjpeg" class="modal">
+      <div class="modal-content">
+        <h2>Configuración MozJPEG</h2>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="moz-quality"
+              >Calidad (0-100): <span id="moz-quality-value">84</span></label
+            >
+            <input
+              type="range"
+              id="moz-quality"
+              min="0"
+              max="100"
+              value="84"
+              class="slider"
+            />
+          </div>
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="moz-progressive" checked />
+              Progresivo</label
+            >
+          </div>
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="moz-trellis" checked /> Trellis
+              quantization</label
+            >
+          </div>
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="moz-trellis-dc" checked /> Trellis
+              DC</label
+            >
+          </div>
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="moz-tune-ssim" checked /> Optimizar
+              para SSIM</label
+            >
+          </div>
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="moz-optimize-scans" checked />
+              Optimizar scans</label
+            >
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="moz-apply" class="modal-btn">Aplicar</button>
+          <button id="moz-cancel" class="modal-btn cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal para configuración de Jpegli -->
+    <div id="modal-jpegli" class="modal">
+      <div class="modal-content">
+        <h2>Configuración Jpegli</h2>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="jpegli-quality"
+              >Calidad (0-100): <span id="jpegli-quality-value">85</span></label
+            >
+            <input
+              type="range"
+              id="jpegli-quality"
+              min="0"
+              max="100"
+              value="85"
+              class="slider"
+            />
+          </div>
+          <div class="form-group">
+            <label>Subsampling:</label>
+            <select id="jpegli-subsampling">
+              <option value="0">4:4:4 (mejor calidad)</option>
+              <option value="1">4:2:2</option>
+              <option value="2" selected>4:2:0 (mejor compresión)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="jpegli-optimize-coding" checked />
+              Optimizar codificación</label
+            >
+          </div>
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="jpegli-allow-chroma-gray" checked />
+              Permitir croma en grises</label
+            >
+          </div>
+          <!-- Nivel progresivo -->
+          <div class="form-group">
+            <label>Progresivo:</label>
+            <select id="jpegli-progressive-level">
+              <option value="0">No progresivo</option>
+              <option value="1" selected>Básico</option>
+              <option value="2">Fino</option>
+            </select>
+          </div>
+
+          <!-- Suavizado -->
+          <div class="form-group">
+            <label for="jpegli-smoothing-factor"
+              >Suavizado (0-100):
+              <span id="jpegli-smoothing-value">0</span></label
+            >
+            <input
+              type="range"
+              id="jpegli-smoothing-factor"
+              min="0"
+              max="100"
+              value="0"
+              class="slider"
+            />
+          </div>
+
+          <!-- Método DCT -->
+          <div class="form-group">
+            <label>Método DCT:</label>
+            <select id="jpegli-dct-method">
+              <option value="0" selected>ISLOW (preciso)</option>
+              <option value="1">IFAST (rápido)</option>
+              <option value="2">FLOAT (flotante)</option>
+            </select>
+          </div>
+
+          <!-- Usar tablas estándar (puede no tener efecto) -->
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="jpegli-use-std-tables" /> Usar tablas
+              estándar</label
+            >
+          </div>
+
+          <!-- Forzar baseline -->
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="jpegli-baseline" /> Forzar
+              baseline</label
+            >
+          </div>
+
+          <!-- Cuantización adaptativa (ya existente pero con nuevo ID) -->
+          <div class="form-group">
+            <label
+              ><input type="checkbox" id="jpegli-adaptive-quant" checked />
+              Cuantización adaptativa</label
+            >
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="jpegli-apply" class="modal-btn">Aplicar</button>
+          <button id="jpegli-cancel" class="modal-btn cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="main.js?v=1.4"></script>
   </body>
 </html>

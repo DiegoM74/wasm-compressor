@@ -14,12 +14,72 @@ const imageList = document.getElementById("image-list");
 const listActions = document.getElementById("list-actions");
 const clearAllBtn = document.getElementById("clear-all-btn");
 
+// Configuración por defecto (coincide con los valores fijos originales)
+let mozjpegConfig = {
+  quality: 85,
+  progressive: true,
+  trellis: true,
+  trellis_dc: true,
+  tune_ssim: true,
+  optimize_scans: true,
+};
+
+let jpegliConfig = {
+  quality: 85,
+  subsampling: 2,
+  optimize_coding: true,
+  allow_chroma_gray: true,
+  progressive_level: 1,
+  smoothing_factor: 0,
+  dct_method: 0,
+  use_standard_tables: false,
+  baseline: false,
+  adaptive_quantization: true,
+};
+
+// Elementos del modal MozJPEG
+const modalMoz = document.getElementById("modal-mozjpeg");
+const mozQuality = document.getElementById("moz-quality");
+const mozQualityVal = document.getElementById("moz-quality-value");
+const mozProgressive = document.getElementById("moz-progressive");
+const mozTrellis = document.getElementById("moz-trellis");
+const mozTrellisDc = document.getElementById("moz-trellis-dc");
+const mozTuneSsim = document.getElementById("moz-tune-ssim");
+const mozOptimizeScans = document.getElementById("moz-optimize-scans");
+const mozApply = document.getElementById("moz-apply");
+const mozCancel = document.getElementById("moz-cancel");
+
+// Elementos del modal Jpegli
+const modalJpegli = document.getElementById("modal-jpegli");
+const jpegliQuality = document.getElementById("jpegli-quality");
+const jpegliQualityVal = document.getElementById("jpegli-quality-value");
+const jpegliSubsampling = document.getElementById("jpegli-subsampling");
+const jpegliOptimizeCoding = document.getElementById("jpegli-optimize-coding");
+const jpegliAllowChromaGray = document.getElementById("jpegli-allow-chroma-gray");
+const jpegliProgressiveLevel = document.getElementById("jpegli-progressive-level");
+const jpegliSmoothingFactor = document.getElementById("jpegli-smoothing-factor");
+const jpegliSmoothingVal = document.getElementById("jpegli-smoothing-value");
+const jpegliDctMethod = document.getElementById("jpegli-dct-method");
+const jpegliUseStdTables = document.getElementById("jpegli-use-std-tables");
+const jpegliBaseline = document.getElementById("jpegli-baseline");
+const jpegliAdaptiveQuant = document.getElementById("jpegli-adaptive-quant");
+const jpegliApply = document.getElementById("jpegli-apply");
+const jpegliCancel = document.getElementById("jpegli-cancel");
+
+// Actualizar valores mostrados en los sliders
+mozQuality.addEventListener("input", () => {
+  mozQualityVal.textContent = mozQuality.value;
+});
+jpegliQuality.addEventListener("input", () => {
+  jpegliQualityVal.textContent = jpegliQuality.value;
+});
+
 let filesData = [];
 let workerMoz = null;
 let workerJpegli = null;
 let isCompressing = false;
 let isMozReady = false;
-let isJpegliReady = false; // Simulated as false for now, since it's not ready
+let isJpegliReady = false;
 
 function updateStatus(text, type = "default") {
   statusText.textContent = text;
@@ -59,8 +119,12 @@ function compressImageMoz(buffer) {
     workerMoz.onerror = (e) => reject(e);
     workerMoz.postMessage({
       imageBuffer: buffer,
-      quality: 84,
-      progressive: 1,
+      quality: mozjpegConfig.quality,
+      progressive: mozjpegConfig.progressive ? 1 : 0,
+      trellis: mozjpegConfig.trellis ? 1 : 0,
+      trellis_dc: mozjpegConfig.trellis_dc ? 1 : 0,
+      tune_ssim: mozjpegConfig.tune_ssim ? 1 : 0,
+      optimize_scans: mozjpegConfig.optimize_scans ? 1 : 0,
     });
   });
 }
@@ -77,13 +141,11 @@ function compressImageJpegli(buffer) {
       } else if (e.data.type === "error") {
         reject(new Error(e.data.message));
       }
-      // Ignore "ready" messages
     };
     workerJpegli.onerror = (e) => reject(e);
     workerJpegli.postMessage({
       imageBuffer: buffer,
-      distance: 0.1,      // Equivalente a ~quality 95
-      subsampling: 2,     // 4:2:0 (mejor compresión)
+      config: jpegliConfig,
     });
   });
 }
@@ -581,3 +643,90 @@ async function doDownload(mode) {
 downloadBtn.addEventListener("click", () => doDownload("general"));
 downloadMozBtn.addEventListener("click", () => doDownload("mozjpeg"));
 downloadJpegliBtn.addEventListener("click", () => doDownload("jpegli"));
+
+// ---- Lógica de modales ----
+
+// Abrir modal MozJPEG
+document.getElementById("config-mozjpeg-btn").addEventListener("click", () => {
+  // Cargar valores actuales en el modal
+  mozQuality.value = mozjpegConfig.quality;
+  mozQualityVal.textContent = mozjpegConfig.quality;
+  mozProgressive.checked = mozjpegConfig.progressive;
+  mozTrellis.checked = mozjpegConfig.trellis;
+  mozTrellisDc.checked = mozjpegConfig.trellis_dc;
+  mozTuneSsim.checked = mozjpegConfig.tune_ssim;
+  mozOptimizeScans.checked = mozjpegConfig.optimize_scans;
+  modalMoz.classList.add("show");
+});
+
+// Aplicar cambios MozJPEG
+mozApply.addEventListener("click", () => {
+  mozjpegConfig.quality = parseInt(mozQuality.value, 10);
+  mozjpegConfig.progressive = mozProgressive.checked;
+  mozjpegConfig.trellis = mozTrellis.checked;
+  mozjpegConfig.trellis_dc = mozTrellisDc.checked;
+  mozjpegConfig.tune_ssim = mozTuneSsim.checked;
+  mozjpegConfig.optimize_scans = mozOptimizeScans.checked;
+  modalMoz.classList.remove("show");
+});
+
+// Cancelar MozJPEG
+mozCancel.addEventListener("click", () => {
+  modalMoz.classList.remove("show");
+});
+
+// Cerrar modal al hacer clic fuera del contenido
+modalMoz.addEventListener("click", (e) => {
+  if (e.target === modalMoz) modalMoz.classList.remove("show");
+});
+
+// Abrir modal Jpegli
+document.getElementById("config-jpegli-btn").addEventListener("click", () => {
+  jpegliQuality.value = jpegliConfig.quality;
+  jpegliQualityVal.textContent = jpegliConfig.quality;
+  jpegliSubsampling.value = jpegliConfig.subsampling;
+  jpegliOptimizeCoding.checked = jpegliConfig.optimize_coding;
+  jpegliAllowChromaGray.checked = jpegliConfig.allow_chroma_gray;
+
+  jpegliProgressiveLevel.value = jpegliConfig.progressive_level;
+  jpegliSmoothingFactor.value = jpegliConfig.smoothing_factor;
+  jpegliSmoothingVal.textContent = jpegliConfig.smoothing_factor;
+  jpegliDctMethod.value = jpegliConfig.dct_method;
+  jpegliUseStdTables.checked = jpegliConfig.use_standard_tables;
+  jpegliBaseline.checked = jpegliConfig.baseline;
+  jpegliAdaptiveQuant.checked = jpegliConfig.adaptive_quantization;
+
+  modalJpegli.classList.add("show");
+});
+
+// Aplicar cambios Jpegli
+jpegliApply.addEventListener("click", () => {
+  jpegliConfig.quality = parseInt(jpegliQuality.value, 10);
+  jpegliConfig.subsampling = parseInt(jpegliSubsampling.value, 10);
+  jpegliConfig.optimize_coding = jpegliOptimizeCoding.checked;
+  jpegliConfig.allow_chroma_gray = jpegliAllowChromaGray.checked;
+
+  jpegliConfig.progressive_level = parseInt(jpegliProgressiveLevel.value, 10);
+  jpegliConfig.smoothing_factor = parseInt(jpegliSmoothingFactor.value, 10);
+  jpegliConfig.dct_method = parseInt(jpegliDctMethod.value, 10);
+  jpegliConfig.use_standard_tables = jpegliUseStdTables.checked;
+  jpegliConfig.baseline = jpegliBaseline.checked;
+  jpegliConfig.adaptive_quantization = jpegliAdaptiveQuant.checked;
+
+  modalJpegli.classList.remove("show");
+});
+
+// Actualizar el valor mostrado del slider de suavizado
+jpegliSmoothingFactor.addEventListener("input", () => {
+  jpegliSmoothingVal.textContent = jpegliSmoothingFactor.value;
+});
+
+// Cancelar Jpegli
+jpegliCancel.addEventListener("click", () => {
+  modalJpegli.classList.remove("show");
+});
+
+// Cerrar modal al hacer clic fuera
+modalJpegli.addEventListener("click", (e) => {
+  if (e.target === modalJpegli) modalJpegli.classList.remove("show");
+});
