@@ -1,6 +1,8 @@
 #!/bin/bash
 # Script para compilar Jpegli a WebAssembly
 # Ejecutar desde: /home/diego/jpeg-compressor-wasm/
+
+# Limpieza previa: rm -rf src/jpegli/build_wasm
 # Uso: bash build_jpegli.sh
 
 # Mover el archivo jpegli_encoder.js y jpegli_encoder.wasm a la carpeta web
@@ -121,6 +123,7 @@ emcc src/jpegli_wrapper.cpp \
     -I src/jpegli/lib \
     -I src/jpegli/build_wasm \
     -I src/jpegli/build_wasm/lib/include/jpegli \
+    -I src/jpegli/third_party/highway \
     $LINK_LIBS \
     -o build/jpegli_encoder.js \
     -s WASM=1 \
@@ -128,7 +131,7 @@ emcc src/jpegli_wrapper.cpp \
     -s INITIAL_MEMORY=134217728 \
     -s MAXIMUM_MEMORY=536870912 \
     -s EXPORTED_RUNTIME_METHODS='["ccall","getValue","wasmMemory"]' \
-    -s EXPORTED_FUNCTIONS='["_compress_image_jpegli","_malloc","_free"]' \
+    -s EXPORTED_FUNCTIONS='["_compress_image_jpegli","_free_result_data_jpegli","_malloc","_free"]' \
     -Os \
     -DNDEBUG
 
