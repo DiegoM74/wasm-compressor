@@ -1,44 +1,47 @@
 #!/bin/bash
+
 # Script para compilar MozJPEG a WebAssembly
-# Ejecutar desde: /home/diego/jpeg-compressor-wasm/
+# Ejecutar desde la raíz del proyecto
 
-# Limpieza previa: rm -rf src/mozjpeg/build_wasm
-# Uso: bash build_mozjpeg.sh
+set -e # Detener si hay error
 
-# Mover el archivo jpeg_encoder.js y jpeg_encoder.wasm a la carpeta web
-# cp build/jpeg_encoder.js web/ && cp build/jpeg_encoder.wasm web/
-
-set -e
-
-PROJECT_DIR="/home/diego/jpeg-compressor-wasm"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOZJPEG_DIR="$PROJECT_DIR/src/mozjpeg"
 BUILD_DIR="$MOZJPEG_DIR/build_wasm"
 BUILD_OUT="$PROJECT_DIR/build"
+WEB_DIR="$PROJECT_DIR/web"
 
 echo "========================================"
-echo " Compilación de MozJPEG WASM"
+echo " Configuración de entorno"
 echo "========================================"
 
+# Verificar que emcc está disponible
 if ! command -v emcc &> /dev/null; then
     echo "ERROR: emcc no encontrado. Asegúrate de que Emscripten está activado."
     echo "Prueba: source ~/emsdk/emsdk_env.sh"
     exit 1
 fi
 
-echo "[1/5] Emscripten: $(emcc --version 2>&1 | head -1)"
+echo "Emscripten: $(emcc --version 2>&1 | head -1)"
+mkdir -p "$BUILD_OUT"
 
+# Verificar que el repo de mozjpeg existe
 if [ ! -f "$MOZJPEG_DIR/CMakeLists.txt" ]; then
     echo "ERROR: No se encontró CMakeLists.txt en $MOZJPEG_DIR"
     echo "Clonando mozjpeg..."
+    mkdir -p "$PROJECT_DIR/src"
     cd "$PROJECT_DIR/src"
     rm -rf mozjpeg
     git clone https://github.com/mozilla/mozjpeg.git mozjpeg
     cd mozjpeg
 else
-    echo "[2/5] MozJPEG ya existe en $MOZJPEG_DIR"
+    echo "MozJPEG ya existe en $MOZJPEG_DIR"
 fi
 
-echo "[3/5] Limpiando build_wasm..."
+echo ""
+echo "========================================"
+echo " Limpieza previa..."
+echo "========================================"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
@@ -46,7 +49,10 @@ mkdir -p "$BUILD_DIR"
 unset CFLAGS
 unset CXXFLAGS
 
-echo "[4/5] Configurando con emcmake cmake..."
+echo ""
+echo "========================================"
+echo " Configurando con emcmake cmake..."
+echo "========================================"
 cd "$BUILD_DIR"
 emcmake cmake "$MOZJPEG_DIR" \
     -DENABLE_STATIC=ON \
@@ -56,10 +62,6 @@ emcmake cmake "$MOZJPEG_DIR" \
     -DPNG_SUPPORTED=OFF \
     -DCMAKE_BUILD_TYPE=Release
 
-# --- FIX: jconfigint.h bug ---
-# emcmake cmake genera jconfigint.h con SIZEOF_SIZE_T=7 para wasm32 (bug de
-# detección de arquitectura). jchuff.c solo acepta 4 u 8, de lo contrario
-# lanza "#error Cannot determine word size". Lo parcheamos antes del make.
 JCONFIGINT="$BUILD_DIR/jconfigint.h"
 if [ ! -f "$JCONFIGINT" ]; then
     echo "ERROR: No se generó $JCONFIGINT tras cmake"
@@ -69,9 +71,11 @@ CURRENT=$(grep "SIZEOF_SIZE_T" "$JCONFIGINT" | head -1)
 echo "  jconfigint.h original: $CURRENT"
 sed -i 's/#define SIZEOF_SIZE_T.*/#define SIZEOF_SIZE_T 4/' "$JCONFIGINT"
 echo "  jconfigint.h parcheado: #define SIZEOF_SIZE_T 4"
-# -----------------------------
 
-echo "[5/5] Compilando..."
+echo ""
+echo "========================================"
+echo " Compilando..."
+echo "========================================"
 emmake make -j$(nproc)
 
 echo ""
@@ -98,8 +102,6 @@ echo "========================================"
 echo " Compilando el wrapper WASM final..."
 echo "========================================"
 
-mkdir -p "$BUILD_OUT"
-
 cd "$PROJECT_DIR"
 emcc src/jpeg_wrapper.c \
     -I src/mozjpeg \
@@ -120,9 +122,15 @@ echo "========================================"
 if [ -f "$BUILD_OUT/jpeg_encoder.js" ] && [ -f "$BUILD_OUT/jpeg_encoder.wasm" ]; then
     JS_SIZE=$(du -h "$BUILD_OUT/jpeg_encoder.js" | cut -f1)
     WASM_SIZE=$(du -h "$BUILD_OUT/jpeg_encoder.wasm" | cut -f1)
-    echo " EXITO!"
+    echo " ¡ÉXITO!"
     echo " jpeg_encoder.js:   $JS_SIZE"
     echo " jpeg_encoder.wasm: $WASM_SIZE"
+    
+    echo ""
+    echo "Copiando archivos a la carpeta web..."
+    cp "$BUILD_OUT/jpeg_encoder.js" "$WEB_DIR/"
+    cp "$BUILD_OUT/jpeg_encoder.wasm" "$WEB_DIR/"
+    echo "¡Archivos copiados con éxito!"
 else
     echo " ERROR: No se generaron los archivos de salida."
     exit 1

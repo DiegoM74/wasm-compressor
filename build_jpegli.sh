@@ -1,22 +1,18 @@
 #!/bin/bash
+
 # Script para compilar Jpegli a WebAssembly
-# Ejecutar desde: /home/diego/jpeg-compressor-wasm/
-
-# Limpieza previa: rm -rf src/jpegli/build_wasm
-# Uso: bash build_jpegli.sh
-
-# Mover el archivo jpegli_encoder.js y jpegli_encoder.wasm a la carpeta web
-# cp build/jpegli_encoder.js web/ && cp build/jpegli_encoder.wasm web/
+# Ejecutar desde la raíz del proyecto
 
 set -e  # Detener si hay error
 
-PROJECT_DIR="/home/diego/jpeg-compressor-wasm"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JPEGLI_DIR="$PROJECT_DIR/src/jpegli"
 BUILD_DIR="$JPEGLI_DIR/build_wasm"
 BUILD_OUT="$PROJECT_DIR/build"
+WEB_DIR="$PROJECT_DIR/web"
 
 echo "========================================"
-echo " Compilación de Jpegli WASM"
+echo " Configuración de entorno"
 echo "========================================"
 
 # Verificar que emcc está disponible
@@ -26,12 +22,14 @@ if ! command -v emcc &> /dev/null; then
     exit 1
 fi
 
-echo "[1/5] Emscripten: $(emcc --version 2>&1 | head -1)"
+echo "Emscripten: $(emcc --version 2>&1 | head -1)"
+mkdir -p "$BUILD_OUT"
 
 # Verificar que el repo de jpegli (libjxl) existe
 if [ ! -f "$JPEGLI_DIR/CMakeLists.txt" ]; then
     echo "ERROR: No se encontró CMakeLists.txt en $JPEGLI_DIR"
     echo "Clonando libjxl..."
+    mkdir -p "$PROJECT_DIR/src"
     cd "$PROJECT_DIR/src"
     rm -rf jpegli
     git clone https://github.com/libjxl/libjxl.git jpegli
@@ -39,13 +37,17 @@ if [ ! -f "$JPEGLI_DIR/CMakeLists.txt" ]; then
     git submodule update --init --recursive
 fi
 
-# Limpiar y recrear build_wasm
-echo "[2/5] Limpiando build_wasm..."
+echo ""
+echo "========================================"
+echo " Limpieza previa..."
+echo "========================================"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-# Configurar con emcmake cmake
-echo "[3/5] Configurando con emcmake cmake..."
+echo ""
+echo "========================================"
+echo " Configurando con emcmake cmake..."
+echo "========================================"
 cd "$BUILD_DIR"
 emcmake cmake "$JPEGLI_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
@@ -60,11 +62,16 @@ emcmake cmake "$JPEGLI_DIR" \
     -DJPEGXL_FORCE_SYSTEM_BROTLI=OFF \
     -DJPEGXL_FORCE_SYSTEM_HWY=OFF
 
-echo "[4/5] Compilando librerias con emmake make (puede tardar varios minutos)..."
+echo ""
+echo "========================================"
+echo " Compilando librerias..."
+echo "========================================"
 emmake make -j$(nproc) jpegli-static jxl_cms jxl_threads hwy
 
-# Verificar que se generaron los .a
-echo "[5/5] Verificando archivos generados..."
+echo ""
+echo "========================================"
+echo " Verificando archivos generados..."
+echo "========================================"
 EXPECTED_LIBS=(
     "$BUILD_DIR/lib/libjpegli-static.a"
     "$BUILD_DIR/third_party/highway/libhwy.a"
@@ -140,9 +147,15 @@ echo "========================================"
 if [ -f "$BUILD_OUT/jpegli_encoder.js" ] && [ -f "$BUILD_OUT/jpegli_encoder.wasm" ]; then
     JS_SIZE=$(du -h "$BUILD_OUT/jpegli_encoder.js" | cut -f1)
     WASM_SIZE=$(du -h "$BUILD_OUT/jpegli_encoder.wasm" | cut -f1)
-    echo " EXITO!"
+    echo " ¡ÉXITO!"
     echo " jpegli_encoder.js:   $JS_SIZE"
     echo " jpegli_encoder.wasm: $WASM_SIZE"
+
+    echo ""
+    echo "Copiando archivos a la carpeta web..."
+    cp "$BUILD_OUT/jpegli_encoder.js" "$WEB_DIR/"
+    cp "$BUILD_OUT/jpegli_encoder.wasm" "$WEB_DIR/"
+    echo "¡Archivos copiados con éxito!"
 else
     echo " ERROR: No se generaron los archivos de salida."
     exit 1

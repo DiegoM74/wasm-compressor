@@ -9,6 +9,7 @@ Compresor de imágenes JPEG que funciona completamente en el navegador utilizand
 - **WebAssembly**: Rendimiento cercano al nativo mediante compilación de código C a WebAssembly con Emscripten.
 - **Soporte múltiple imágenes**: Capacidad de cargar y procesar múltiples archivos JPEG simultáneamente. Las imágenes comprimidas pueden descargar individualmente o en un archivo ZIP para descarga conjunta.
 - **Web Worker**: El motor de compresión corre en segundo plano, sin bloquear la interfaz de usuario durante el procesamiento.
+- **Configuración Avanzada**: Modales dedicados para ajustar todos los parámetros y flags posibles de MozJPEG y Jpegli directamente desde la interfaz web.
 
 ## Arquitectura Tecnológica
 
@@ -20,11 +21,11 @@ El proyecto integra dos librerías de compresión JPEG trabajando en paralelo:
 - Implementación compilada a WebAssembly mediante Emscripten.
 - Proporciona compresión confiable y de alta calidad.
 
-### Jpegli (Próximamente)
+### Jpegli
 
-- La librería de compresión JPEG de Google, actualmente bajo desarrollo activo.
-- Se encuentra en fase de investigación preliminar para pruebas comparativas.
-- Será implementado oficialmente en una versión futura cuando alcance madurez operativa.
+- Codec JPEG de Google con algoritmos avanzados derivados de JPEG XL.
+- Proporciona una calidad superior a ratios de bits bajos y es totalmente compatible con visores JPEG estándar.
+- Implementación completa en WebAssembly con soporte para cuantización adaptativa y espacio de color XYB.
 
 ### Enfoque de Compresión Comparativa
 
@@ -51,56 +52,62 @@ El objetivo del proyecto no es únicamente utilizar MozJPEG o Jpegli, sino integ
 - Navegador web moderno con soporte para Web Workers y WebAssembly
 - Archivos de entrada exclusivamente en formato JPEG (próximamente se soportarán otros formatos)
 
-## Compilación del Código Fuente
-
-El proyecto incluye código fuente compilado a WASM. Para recompilar el módulo MozJPEG WASM (próximamente comandos para Jpegli):
+El proyecto incluye scripts de automatización para facilitar la compilación de ambos motores en un entorno Linux (o WSL en Windows):
 
 ```bash
-# Requisitos: Emscripten SDK, MozJPEG compilado
-# En Windows, usar Ubuntu en WSL
+# Requisitos: Emscripten SDK instalado y activado
+# Asegúrate de haber ejecutado: source /ruta/a/emsdk/emsdk_env.sh
 
-cd src/mozjpeg/build_wasm
-emcmake cmake .. -DENABLE_STATIC=ON -DENABLE_SHARED=OFF -DWITH_SIMD=OFF -DWITH_TURBOJPEG=OFF -DPNG_SUPPORTED=OFF
-emmake make jpeg-static
+# Para compilar MozJPEG
+bash build_mozjpeg.sh
 
-cd ../../..
-emcc src/jpeg_wrapper.c \
-  -I src/mozjpeg \
-  -I src/mozjpeg/build_wasm \
-  src/mozjpeg/build_wasm/libjpeg.a \
-  -o build/jpeg_encoder.js \
-  -s WASM=1 \
-  -s ALLOW_MEMORY_GROWTH=1 \
-  -s EXPORTED_RUNTIME_METHODS='["ccall","getValue","wasmMemory"]' \
-  -s EXPORTED_FUNCTIONS='["_compress_image","_malloc","_free"]' \
-  -O3
+# Para compilar Jpegli
+bash build_jpegli.sh
 ```
+
+Los scripts son generales y pueden ejecutarse en cualquier PC con Emscripten. Se encargan de:
+
+1.  **Configurar el entorno**: Verificar herramientas y descargar el código fuente necesario si no existe.
+2.  **Limpieza previa**: Eliminar compilaciones anteriores para asegurar un estado limpio.
+3.  **Compilación**: Configurar CMake con flags óptimos para WebAssembly y compilar las librerías.
+4.  **WRAPPER WASM**: Generar los archivos `.js` y `.wasm` finales en la carpeta `build/`.
+5.  **Despliegue automático**: Copiar automáticamente los archivos generados a la carpeta `web/` para que la aplicación frontend pueda usarlos inmediatamente.
 
 ## Estructura del Proyecto
 
 ```
 jpeg-compressor-wasm/
-├── README.md              # Este archivo de documentación
-├── .gitignore             # Archivo de ignorado para git
-├── build/                 # Directorio de archivos compilados
-├── src/                   # Código fuente C/C++
-│   ├── jpeg_wrapper.c     # Wrapper para MozJPEG WASM existente
-│   ├── jpegli_wrapper.c   # Wrapper para Jpegli (futura implementación)
-│   └── mozjpeg/           # Código de MozJPEG y compilación WASM
-└── web/                   # Aplicación frontend
-    ├── index.html         # Estructura HTML del aplicacion
-    ├── main.js            # Lógica principal del JavaScript
-    ├── styles.css         # Estilos CSS del interfaz
-    ├── worker.js          # Web Worker para ejecución paralela
-    ├── jpeg_encoder.js    # Módulo WASM compilado de MozJPEG
-    └── jpeg_encoder.wasm  # Binario WASM de MozJPEG
+├── README.md               # Este archivo de documentación
+├── .gitignore              # Archivo de ignorado para git
+├── build_mozjpeg.sh        # Script de compilación automatizada para MozJPEG
+├── build_jpegli.sh         # Script de compilación automatizada para Jpegli
+├── build/                  # Directorio de archivos compilados finales
+│   ├── jpeg_encoder.js     # Módulo JS de MozJPEG
+│   ├── jpeg_encoder.wasm   # Binario WASM de MozJPEG
+│   ├── jpegli_encoder.js   # Módulo JS de Jpegli
+│   └── jpegli_encoder.wasm # Binario WASM de Jpegli
+├── src/                    # Código fuente C/C++
+│   ├── jpeg_wrapper.c      # Wrapper para MozJPEG
+│   ├── jpegli_wrapper.cpp  # Wrapper para Jpegli
+│   ├── mozjpeg/            # Submódulo/Código de MozJPEG
+│   └── jpegli/             # Submódulo/Código de Jpegli (libjxl)
+└── web/                    # Aplicación frontend
+    ├── index.html          # Interfaz de usuario (página principal)
+    ├── main.js             # Lógica de la aplicación y modales
+    ├── styles.css          # Estilos visuales
+    ├── worker.js           # Web Worker para MozJPEG
+    ├── worker-jpegli.js    # Web Worker para Jpegli
+    ├── jpeg_encoder.js     # (Auto-generado) Binario MozJPEG
+    ├── jpeg_encoder.wasm   # (Auto-generado) Binario MozJPEG
+    ├── jpegli_encoder.js   # (Auto-generado) Binario Jpegli
+    └── jpegli_encoder.wasm # (Auto-generado) Binario Jpegli
 ```
 
 ## Roadmap
 
-- **Fase Actual**: Implementación y pruebas con MozJPEG WASM.
-- **Próxima Fase**: Integración oficial del módulo Jpegli para comparativa de rendimiento.
-- **Futuro**: Implementación de otros codec de compresión de imágenes (PNG, WebP y AVIF).
+- **Fase Actual**: Integración completa de MozJPEG y Jpegli con soporte para configuración avanzada de parámetros.
+- **Próxima Fase**: Soporte para otros formatos de entrada (PNG, WebP) para optimizar su compresión.
+- **Futuro**: Soporte de otros codecs de salida modernos como WebP y AVIF.
 
 ## Licencia
 
