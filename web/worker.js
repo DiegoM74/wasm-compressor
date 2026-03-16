@@ -1,22 +1,15 @@
-importScripts("./jpeg_encoder.js");
-
 var wasmReady = false;
-var heapU8 = null;
 
 var Module = {
   onRuntimeInitialized: function () {
     wasmReady = true;
-
-    if (Module.HEAPU8) {
-      heapU8 = Module.HEAPU8;
-    } else if (Module.wasmMemory && Module.wasmMemory.buffer) {
-      heapU8 = new Uint8Array(Module.wasmMemory.buffer);
-    }
-
     console.log("MozJPEG WASM ready");
     self.postMessage({ type: "ready" });
   },
 };
+
+// importScripts DESPUÉS de definir Module
+importScripts("./jpeg_encoder.js");
 
 self.onmessage = function (e) {
   if (!wasmReady) {
@@ -38,14 +31,15 @@ self.onmessage = function (e) {
   }
 
   try {
+    // Siempre leer HEAPU8 fresco desde Module — puede cambiar si la
+    // memoria WASM crece (ALLOW_MEMORY_GROWTH=1 invalida vistas anteriores)
+    const heap = Module.HEAPU8;
+
     const inputPtr = Module._malloc(imageBuffer.byteLength);
-    const imageArray = new Uint8Array(imageBuffer);
+    if (!inputPtr) throw new Error("malloc failed (out of memory)");
 
-    for (let i = 0; i < imageBuffer.byteLength; i++) {
-      heapU8[inputPtr + i] = imageArray[i];
-    }
+    heap.set(new Uint8Array(imageBuffer), inputPtr);
 
-    // === CONFIGURACIÓN OPTIMIZADA ===
     const progressive = 1;
     const trellis = 1;
     const trellis_dc = 1;
@@ -63,23 +57,43 @@ self.onmessage = function (e) {
       optimize_scans,
     );
 
-    const dataPtr =
-      heapU8[resultStructPtr] |
-      (heapU8[resultStructPtr + 1] << 8) |
-      (heapU8[resultStructPtr + 2] << 16) |
-      (heapU8[resultStructPtr + 3] << 24);
-    const size =
-      heapU8[resultStructPtr + 4] |
-      (heapU8[resultStructPtr + 5] << 8) |
-      (heapU8[resultStructPtr + 6] << 16) |
-      (heapU8[resultStructPtr + 7] << 24);
+    // Releer heap DESPUÉS de compress_image: la memoria pudo haber crecido
+    const heapAfter = Module.HEAPU8;
 
-    const outputBuffer = new Uint8Array(size);
-    for (let i = 0; i < size; i++) {
-      outputBuffer[i] = heapU8[dataPtr + i];
+    if (!resultStructPtr) {
+      Module._free(inputPtr);
+      throw new Error("compress_image returned null");
     }
 
+    // Leer el struct CompressedResult { unsigned char* data; int size; }
+    // En wasm32: puntero = 4 bytes, int = 4 bytes → offsets 0 y 4
+    const dataPtr =
+      heapAfter[resultStructPtr] |
+      (heapAfter[resultStructPtr + 1] << 8) |
+      (heapAfter[resultStructPtr + 2] << 16) |
+      (heapAfter[resultStructPtr + 3] << 24);
+
+    const size =
+      heapAfter[resultStructPtr + 4] |
+      (heapAfter[resultStructPtr + 5] << 8) |
+      (heapAfter[resultStructPtr + 6] << 16) |
+      (heapAfter[resultStructPtr + 7] << 24);
+
+    if (!dataPtr || size <= 0) {
+      Module._free(inputPtr);
+      throw new Error(
+        `compress_image devolvió datos inválidos (ptr=${dataPtr}, size=${size})`,
+      );
+    }
+
+    // Copiar resultado antes de liberar
+    const outputBuffer = new Uint8Array(
+      heapAfter.slice(dataPtr, dataPtr + size),
+    );
+
     Module._free(inputPtr);
+    // Nota: out_buffer de libjpeg se libera internamente por mozjpeg,
+    // NO llamar free sobre dataPtr (lo maneja jpeg_mem_dest internamente)
 
     self.postMessage(
       {
