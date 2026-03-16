@@ -16,12 +16,31 @@ const clearAllBtn = document.getElementById("clear-all-btn");
 
 // Configuración por defecto (coincide con los valores fijos originales)
 let mozjpegConfig = {
-  quality: 85,
-  progressive: true,
-  trellis: true,
-  trellis_dc: true,
-  tune_ssim: true,
-  optimize_scans: true,
+  // Estándar libjpeg
+  quality:          84,
+  progressive:      true,
+  optimize_coding:  true,
+  smoothing:        0,
+  chroma_subsample: 2,   // 0=4:4:4 1=4:2:2 2=4:2:0
+  write_jfif:       true,
+  // Booleanos MozJPEG
+  trellis:              true,
+  trellis_dc:           true,
+  trellis_eob_opt:      true,
+  use_scans_in_trellis: false,
+  trellis_q_opt:        false,
+  overshoot_deringing:  true,
+  optimize_scans:       true,
+  tune_ssim:            true,
+  // Enteros MozJPEG
+  base_quant_tbl:      0,
+  trellis_freq_split:  8,
+  trellis_num_loops:   1,
+  dc_scan_opt_mode:    1,
+  // Flotantes MozJPEG (null = usar default interno)
+  lambda_log_scale1:        null,
+  lambda_log_scale2:        null,
+  trellis_delta_dc_weight:  null,
 };
 
 let jpegliConfig = {
@@ -103,29 +122,55 @@ function checkWorkerStatus() {
 
 function compressImageMoz(buffer) {
   return new Promise((resolve, reject) => {
-    workerMoz.onmessage = (e) => {
+    const cfg = mozjpegConfig;
+    
+    const handler = (e) => {
       if (e.data.type === "done") {
+        workerMoz.removeEventListener("message", handler);
         resolve({
           buffer: e.data.buffer,
           originalSize: e.data.originalSize,
           compressedSize: e.data.compressedSize,
         });
       } else if (e.data.type === "error") {
+        workerMoz.removeEventListener("message", handler);
         reject(new Error(e.data.message));
-      } else if (e.data.type === "ready") {
-        // Ignore
       }
+      // Ignorar "ready"
     };
+    
+    workerMoz.addEventListener("message", handler);
     workerMoz.onerror = (e) => reject(e);
+    
+    // Enviar TODOS los parámetros de configuración
     workerMoz.postMessage({
       imageBuffer: buffer,
-      quality: mozjpegConfig.quality,
-      progressive: mozjpegConfig.progressive ? 1 : 0,
-      trellis: mozjpegConfig.trellis ? 1 : 0,
-      trellis_dc: mozjpegConfig.trellis_dc ? 1 : 0,
-      tune_ssim: mozjpegConfig.tune_ssim ? 1 : 0,
-      optimize_scans: mozjpegConfig.optimize_scans ? 1 : 0,
-    });
+      // Estándar libjpeg
+      quality:          cfg.quality,
+      progressive:      cfg.progressive      ? 1 : 0,
+      optimize_coding:  cfg.optimize_coding  ? 1 : 0,
+      smoothing:        cfg.smoothing,
+      chroma_subsample: cfg.chroma_subsample,
+      write_jfif:       cfg.write_jfif       ? 1 : 0,
+      // Booleanos MozJPEG
+      trellis:              cfg.trellis              ? 1 : 0,
+      trellis_dc:           cfg.trellis_dc           ? 1 : 0,
+      trellis_eob_opt:      cfg.trellis_eob_opt      ? 1 : 0,
+      use_scans_in_trellis: cfg.use_scans_in_trellis ? 1 : 0,
+      trellis_q_opt:        cfg.trellis_q_opt        ? 1 : 0,
+      overshoot_deringing:  cfg.overshoot_deringing  ? 1 : 0,
+      optimize_scans:       cfg.optimize_scans       ? 1 : 0,
+      tune_ssim:            cfg.tune_ssim            ? 1 : 0,
+      // Enteros MozJPEG
+      base_quant_tbl:      cfg.base_quant_tbl,
+      trellis_freq_split:  cfg.trellis_freq_split,
+      trellis_num_loops:   cfg.trellis_num_loops,
+      dc_scan_opt_mode:    cfg.dc_scan_opt_mode,
+      // Flotantes MozJPEG (null = usar default interno en worker)
+      lambda_log_scale1:        cfg.lambda_log_scale1,
+      lambda_log_scale2:        cfg.lambda_log_scale2,
+      trellis_delta_dc_weight:  cfg.trellis_delta_dc_weight,
+    }, [buffer]);
   });
 }
 
@@ -182,6 +227,101 @@ function initWorkers() {
 }
 
 initWorkers();
+initMozjpegModalListeners();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FUNCIONES AUXILIARES PARA MOZJPEG
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Sincronizar sliders con etiquetas en el modal MozJPEG
+function initMozjpegModalListeners() {
+  const sliderMap = {
+    "moz-quality": "moz-quality-value",
+    "moz-smoothing": "moz-smoothing-value",
+    "moz-trellis-freq-split": "moz-trellis-freq-split-value",
+    "moz-trellis-num-loops": "moz-trellis-num-loops-value",
+  };
+  for (const [sliderId, labelId] of Object.entries(sliderMap)) {
+    const slider = document.getElementById(sliderId);
+    const label  = document.getElementById(labelId);
+    if (slider && label) {
+      slider.addEventListener("input", () => { label.textContent = slider.value; });
+    }
+  }
+
+  // Sliders de flotantes (valor real = slider / 100)
+  const floatSliderMap = {
+    "moz-lambda1":   { labelId: "moz-lambda1-value",  divisor: 100 },
+    "moz-lambda2":   { labelId: "moz-lambda2-value",  divisor: 100 },
+    "moz-delta-dc":  { labelId: "moz-delta-dc-value", divisor: 100 },
+  };
+  for (const [sliderId, cfg] of Object.entries(floatSliderMap)) {
+    const slider = document.getElementById(sliderId);
+    const label  = document.getElementById(cfg.labelId);
+    if (slider && label) {
+      slider.addEventListener("input", () => {
+        label.textContent = (slider.value / cfg.divisor).toFixed(2);
+      });
+    }
+  }
+
+  // Checkbox "auto" para lambdas
+  const lambdaAuto = document.getElementById("moz-lambda-auto");
+  if (lambdaAuto) {
+    lambdaAuto.addEventListener("change", () => {
+      const manualControls = document.querySelectorAll(".moz-lambda-manual");
+      manualControls.forEach(el => {
+        el.style.opacity = lambdaAuto.checked ? "0.4" : "1";
+        el.style.pointerEvents = lambdaAuto.checked ? "none" : "auto";
+      });
+    });
+  }
+}
+
+// Leer valores del modal y actualizar mozjpegConfig
+function applyMozjpegConfig() {
+  const g = (id) => document.getElementById(id);
+
+  mozjpegConfig.quality          = parseInt(g("moz-quality").value);
+  mozjpegConfig.progressive      = g("moz-progressive").checked;
+  mozjpegConfig.optimize_coding  = g("moz-optimize-coding").checked;
+  mozjpegConfig.smoothing        = parseInt(g("moz-smoothing").value);
+  mozjpegConfig.chroma_subsample = parseInt(g("moz-chroma-subsample").value);
+  mozjpegConfig.write_jfif       = g("moz-write-jfif").checked;
+
+  mozjpegConfig.trellis              = g("moz-trellis").checked;
+  mozjpegConfig.trellis_dc          = g("moz-trellis-dc").checked;
+  mozjpegConfig.trellis_eob_opt      = g("moz-trellis-eob-opt").checked;
+  mozjpegConfig.use_scans_in_trellis = g("moz-use-scans-in-trellis").checked;
+  mozjpegConfig.trellis_q_opt        = g("moz-trellis-q-opt").checked;
+  mozjpegConfig.overshoot_deringing  = g("moz-overshoot-deringing").checked;
+  mozjpegConfig.optimize_scans       = g("moz-optimize-scans").checked;
+  mozjpegConfig.tune_ssim            = g("moz-tune-ssim").checked;
+
+  mozjpegConfig.base_quant_tbl     = parseInt(g("moz-base-quant-tbl").value);
+  mozjpegConfig.trellis_freq_split = parseInt(g("moz-trellis-freq-split").value);
+  mozjpegConfig.trellis_num_loops  = parseInt(g("moz-trellis-num-loops").value);
+  mozjpegConfig.dc_scan_opt_mode   = parseInt(g("moz-dc-scan-opt-mode").value);
+
+  const lambdaAuto = g("moz-lambda-auto")?.checked;
+  if (lambdaAuto) {
+    mozjpegConfig.lambda_log_scale1       = null;
+    mozjpegConfig.lambda_log_scale2       = null;
+    mozjpegConfig.trellis_delta_dc_weight = null;
+  } else {
+    mozjpegConfig.lambda_log_scale1       = parseFloat(g("moz-lambda1").value) / 100;
+    mozjpegConfig.lambda_log_scale2       = parseFloat(g("moz-lambda2").value) / 100;
+    mozjpegConfig.trellis_delta_dc_weight = parseFloat(g("moz-delta-dc").value) / 100;
+  }
+}
+
+// Helper para preset tune_ssim
+function applyTuneSsimPreset(enabled) {
+  if (!enabled) return;
+  mozjpegConfig.base_quant_tbl     = 3;
+  mozjpegConfig.lambda_log_scale1  = 14.75;
+  mozjpegConfig.lambda_log_scale2  = 16.5;
+}
 
 function updateButtonsState() {
   const validFiles = filesData.filter((f) => !f.isUnsupported);
@@ -659,15 +799,17 @@ document.getElementById("config-mozjpeg-btn").addEventListener("click", () => {
   modalMoz.classList.add("show");
 });
 
-// Aplicar cambios MozJPEG
+// Aplicar cambios MozJPEG (versión completa)
 mozApply.addEventListener("click", () => {
-  mozjpegConfig.quality = parseInt(mozQuality.value, 10);
-  mozjpegConfig.progressive = mozProgressive.checked;
-  mozjpegConfig.trellis = mozTrellis.checked;
-  mozjpegConfig.trellis_dc = mozTrellisDc.checked;
-  mozjpegConfig.tune_ssim = mozTuneSsim.checked;
-  mozjpegConfig.optimize_scans = mozOptimizeScans.checked;
+  applyMozjpegConfig();
+  
+  // Si tune_ssim está activado, aplicar preset
+  if (mozjpegConfig.tune_ssim) {
+    applyTuneSsimPreset(true);
+  }
+  
   modalMoz.classList.remove("show");
+  updateStatus("Configuración MozJPEG actualizada", "info");
 });
 
 // Cancelar MozJPEG
@@ -679,6 +821,7 @@ mozCancel.addEventListener("click", () => {
 modalMoz.addEventListener("click", (e) => {
   if (e.target === modalMoz) modalMoz.classList.remove("show");
 });
+
 
 // Abrir modal Jpegli
 document.getElementById("config-jpegli-btn").addEventListener("click", () => {

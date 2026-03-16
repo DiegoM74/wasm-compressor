@@ -70,55 +70,255 @@
     </div>
     <div id="image-list"></div>
 
-    <!-- Modal para configuración de MozJPEG -->
+<!-- Modal para configuración de MozJPEG -->
     <div id="modal-mozjpeg" class="modal">
       <div class="modal-content">
         <h2>Configuración MozJPEG</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 0.9rem;">
+          Ajusta los parámetros de compresión. Pasa el cursor sobre
+          <span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:var(--text-secondary);color:var(--bg-color);text-align:center;line-height:18px;font-size:12px;font-weight:bold;">?</span>
+          para más detalles.
+        </p>
         <div class="modal-body">
+
+          <!-- Calidad -->
           <div class="form-group">
-            <label for="moz-quality"
-              >Calidad (0-100): <span id="moz-quality-value">84</span></label
-            >
-            <input
-              type="range"
-              id="moz-quality"
-              min="0"
-              max="100"
-              value="84"
-              class="slider"
-            />
+            <label for="moz-quality">
+              Calidad
+              <span class="help-icon" title="Relación calidad/tamaño. 60–85 es el rango recomendado.">?</span>
+              <span id="moz-quality-value">84</span>
+            </label>
+            <input type="range" id="moz-quality" min="0" max="100" value="84" class="slider" />
           </div>
+
+          <!-- Chroma subsampling -->
           <div class="form-group">
-            <label
-              ><input type="checkbox" id="moz-progressive" checked />
-              Progresivo</label
-            >
+            <label>
+              Chroma subsampling
+              <span class="help-icon" title="4:4:4 = máxima calidad de color, sin pérdida de croma. 4:2:2 = compresión horizontal. 4:2:0 = mejor compresión (recomendado para web).">?</span>
+            </label>
+            <select id="moz-chroma-subsample">
+              <option value="0">4:4:4 (mejor calidad)</option>
+              <option value="1">4:2:2</option>
+              <option value="2" selected>4:2:0 (mejor compresión)</option>
+            </select>
           </div>
+
+          <!-- Progresivo -->
           <div class="form-group">
-            <label
-              ><input type="checkbox" id="moz-trellis" checked /> Trellis
-              quantization</label
-            >
+            <label>
+              <input type="checkbox" id="moz-progressive" checked />
+              Progresivo
+              <span class="help-icon" title="Codifica la imagen en múltiples pasadas. Archivos ligeramente más pequeños, mejor experiencia de carga en web. Necesario para optimize_scans.">?</span>
+            </label>
           </div>
+
+          <!-- Optimizar codificación Huffman -->
           <div class="form-group">
-            <label
-              ><input type="checkbox" id="moz-trellis-dc" checked /> Trellis
-              DC</label
-            >
+            <label>
+              <input type="checkbox" id="moz-optimize-coding" checked />
+              Optimizar codificación Huffman
+              <span class="help-icon" title="Genera tablas Huffman óptimas para cada imagen (2 pasadas). Reduce tamaño a costa de más tiempo.">?</span>
+            </label>
           </div>
+
+          <!-- Tabla de cuantización base -->
           <div class="form-group">
-            <label
-              ><input type="checkbox" id="moz-tune-ssim" checked /> Optimizar
-              para SSIM</label
-            >
+            <label>
+              Tabla de cuantización base
+              <span class="help-icon" title="0 = JPEG Annex K (estándar). 1 = Flat. 2 = Custom (bajo ringing). 3 = ImageMagick (alta frecuencia). 4 = PSNR-HVS-M Kodak. 5 = HVS. 6 = HVS+PSNR. 7 = Klein et al. 8 = Watson et al.">?</span>
+            </label>
+            <select id="moz-base-quant-tbl">
+              <option value="0" selected>0 — JPEG Annex K (estándar)</option>
+              <option value="1">1 — Flat (uniforme)</option>
+              <option value="2">2 — Custom (bajo ringing)</option>
+              <option value="3">3 — ImageMagick (alta frecuencia)</option>
+              <option value="4">4 — PSNR-HVS-M Kodak</option>
+              <option value="5">5 — HVS (visión humana)</option>
+              <option value="6">6 — HVS + PSNR</option>
+              <option value="7">7 — Klein et al.</option>
+              <option value="8">8 — Watson et al.</option>
+            </select>
           </div>
+
+          <!-- Suavizado -->
           <div class="form-group">
-            <label
-              ><input type="checkbox" id="moz-optimize-scans" checked />
-              Optimizar scans</label
-            >
+            <label>
+              Suavizado
+              <span class="help-icon" title="Filtra el input para eliminar ruido de alta frecuencia. 0 = ninguno, 100 = máximo. Útil para reducir artefactos en imágenes ruidosas.">?</span>
+              <span id="moz-smoothing-value">0</span>
+            </label>
+            <input type="range" id="moz-smoothing" min="0" max="100" value="0" class="slider" />
           </div>
-        </div>
+
+          <!-- Cabecera JFIF -->
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="moz-write-jfif" checked />
+              Incluir cabecera JFIF
+              <span class="help-icon" title="La cabecera JFIF ocupa 18 bytes. Desactivarla ahorra ese espacio pero incumple el estándar (compatible con todos los navegadores web modernos).">?</span>
+            </label>
+          </div>
+
+          <!-- Trellis (colapsable) -->
+          <div class="accordion-section">
+            <button type="button" class="accordion-header" aria-expanded="false">
+              <span style="font-weight:bold;color:var(--accent-primary)">Trellis quantization</span>
+              <span class="accordion-arrow"></span>
+            </button>
+            <div class="accordion-body">
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="moz-trellis" checked />
+                  Trellis AC
+                  <span class="help-icon" title="Optimización rate-distortion de coeficientes AC. Mayor reducción de tamaño a misma calidad percibida. Aumenta el tiempo de compresión ~20%.">?</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="moz-trellis-dc" checked />
+                  Trellis DC
+                  <span class="help-icon" title="Aplica trellis también a los coeficientes DC (componente de brillo promedio de cada bloque 8×8). Ligera mejora de compresión adicional.">?</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="moz-trellis-eob-opt" checked />
+                  Optimizar posición EOB
+                  <span class="help-icon" title="Optimiza la posición del marcador End-Of-Block durante trellis. Mejora la compresión del stream de coeficientes.">?</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="moz-use-scans-in-trellis" />
+                  Usar múltiples scans en trellis
+                  <span class="help-icon" title="Considera la estructura de scans progresivos durante trellis. Solo relevante con imagen progresiva. Aumenta el tiempo significativamente.">?</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="moz-trellis-q-opt" />
+                  Reajustar tabla de cuantización post-trellis
+                  <span class="help-icon" title="Deriva una tabla de cuantización revisada tras el trellis para minimizar el error de reconstrucción. Mejora leve, mayor coste de CPU.">?</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  Punto de corte frecuencial (trellis_freq_split)
+                  <span class="help-icon" title="Divide los coeficientes AC en dos grupos por frecuencia para el trellis. Rango 0–63, default 8 (mozjpeg). Valores más altos = más coeficientes en el grupo de alta frecuencia.">?</span>
+                  <span id="moz-trellis-freq-split-value">8</span>
+                </label>
+                <input type="range" id="moz-trellis-freq-split" min="0" max="63" value="8" class="slider" />
+              </div>
+              <div class="form-group">
+                <label>
+                  Iteraciones trellis (trellis_num_loops)
+                  <span class="help-icon" title="Número de pasadas del algoritmo trellis. Más iteraciones = potencialmente mejor compresión, mucho más lento. Default 1.">?</span>
+                  <span id="moz-trellis-num-loops-value">1</span>
+                </label>
+                <input type="range" id="moz-trellis-num-loops" min="1" max="10" value="1" class="slider" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Optimización de scans (colapsable) -->
+          <div class="accordion-section">
+            <button type="button" class="accordion-header" aria-expanded="false">
+              <span style="font-weight:bold;color:var(--accent-primary)">Optimización de scans</span>
+              <span class="accordion-arrow"></span>
+            </button>
+            <div class="accordion-body">
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="moz-optimize-scans" checked />
+                  Optimizar parámetros de scan (jpgcrush)
+                  <span class="help-icon" title="Busca la partición óptima del espectro DCT en scans separados. Hace archivos progresivos más pequeños. Requiere modo progresivo.">?</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  Modo optimización DC (dc_scan_opt_mode)
+                  <span class="help-icon" title="0 = DC+AC en un solo scan (compatible). 1 = DC separado del AC (default mozjpeg, más eficiente). 2 = DC con luminancia y croma separados.">?</span>
+                </label>
+                <select id="moz-dc-scan-opt-mode">
+                  <option value="0">0 — DC+AC juntos (compatible)</option>
+                  <option value="1" selected>1 — DC separado (default mozjpeg)</option>
+                  <option value="2">2 — DC luma/croma separados</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tune / calidad perceptual (colapsable) -->
+          <div class="accordion-section">
+            <button type="button" class="accordion-header" aria-expanded="false">
+              <span style="font-weight:bold;color:var(--accent-primary)">Calidad perceptual</span>
+              <span class="accordion-arrow"></span>
+            </button>
+            <div class="accordion-body">
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="moz-tune-ssim" checked />
+                  Optimizar para SSIM
+                  <span class="help-icon" title="Ajusta internamente los pesos de trellis para maximizar el índice SSIM (similitud estructural). Produce resultados visualmente más agradables.">?</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="moz-overshoot-deringing" checked />
+                  Overshoot deringing
+                  <span class="help-icon" title="Preprocesa píxeles con valores extremos (p.ej. 0 y 255) para reducir el efecto ringing. Especialmente útil en texto negro sobre fondo blanco. No afecta al tamaño.">?</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Avanzado RD (colapsable) -->
+          <div class="accordion-section">
+            <button type="button" class="accordion-header" aria-expanded="false">
+              <span style="font-weight:bold;color:var(--accent-primary)">Avanzado — escalas RD</span>
+              <span class="accordion-arrow"></span>
+            </button>
+            <div class="accordion-body">
+              <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px;">
+                Estos parámetros controlan el balance rate-distortion interno del trellis.
+                Déjalos en "auto" salvo que sepas lo que haces.
+              </p>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="moz-lambda-auto" checked />
+                  Usar valores por defecto (auto)
+                  <span class="help-icon" title="Si está marcado, las tres escalas de abajo se ignoran y MozJPEG usa sus valores internos.">?</span>
+                </label>
+              </div>
+              <div class="form-group moz-lambda-manual" style="opacity:0.4;pointer-events:none;">
+                <label>
+                  lambda_log_scale1
+                  <span class="help-icon" title="Escala logarítmica que pondera la fidelidad (distorsión). Default interno ≈ 14.75 en tune PSNR-HVS.">?</span>
+                  <span id="moz-lambda1-value">14.75</span>
+                </label>
+                <input type="range" id="moz-lambda1" min="0" max="3000" value="1475" step="25" class="slider" />
+              </div>
+              <div class="form-group moz-lambda-manual" style="opacity:0.4;pointer-events:none;">
+                <label>
+                  lambda_log_scale2
+                  <span class="help-icon" title="Escala logarítmica que pondera el tamaño (rate). Default interno ≈ 16.5.">?</span>
+                  <span id="moz-lambda2-value">16.50</span>
+                </label>
+                <input type="range" id="moz-lambda2" min="0" max="3000" value="1650" step="25" class="slider" />
+              </div>
+              <div class="form-group moz-lambda-manual" style="opacity:0.4;pointer-events:none;">
+                <label>
+                  trellis_delta_dc_weight
+                  <span class="help-icon" title="Peso del componente DC en la función de coste trellis. Default interno ≈ 1.0.">?</span>
+                  <span id="moz-delta-dc-value">1.00</span>
+                </label>
+                <input type="range" id="moz-delta-dc" min="0" max="500" value="100" step="5" class="slider" />
+              </div>
+            </div>
+          </div>
+
+        </div><!-- .modal-body -->
         <div class="modal-footer">
           <button id="moz-cancel" class="modal-btn cancel">Cancelar</button>
           <button id="moz-apply" class="modal-btn">Aplicar</button>
@@ -343,7 +543,7 @@
       </div>
     </div>
 
-    <script src="main.js?v=1.4"></script>
+    <script src="main.js?v=1.5"></script>
 
     <script>
       document.querySelectorAll(".accordion-header").forEach(function (header) {
