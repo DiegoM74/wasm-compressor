@@ -21,7 +21,7 @@ self.onmessage = function (e) {
 
   // ── Parámetros con defaults ──────────────────────────────────────────────
   // Estándar libjpeg
-  const quality = e.data.quality ?? 84;
+  const quality = e.data.quality ?? 85;
   const progressive = e.data.progressive ?? 1;
   const optimize_coding = e.data.optimize_coding ?? 1;
   const smoothing = e.data.smoothing ?? 0; // 0–100

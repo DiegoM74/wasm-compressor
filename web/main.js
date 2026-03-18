@@ -17,7 +17,7 @@ const clearAllBtn = document.getElementById("clear-all-btn");
 // Configuración por defecto (coincide con los valores fijos originales)
 let mozjpegConfig = {
   // Estándar libjpeg
-  quality: 84,
+  quality: 85,
   progressive: true,
   optimize_coding: true,
   smoothing: 0,
