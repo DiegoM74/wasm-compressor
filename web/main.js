@@ -215,7 +215,7 @@ function compressImageJpegli(buffer) {
 }
 
 function initWorkers() {
-  const workerUrl = "./worker.js?v=" + Date.now();
+  const workerUrl = "./mozjpeg/worker.js?v=" + Date.now();
   workerMoz = new Worker(workerUrl);
   workerMoz.onmessage = (e) => {
     if (e.data.type === "ready") {
@@ -226,7 +226,7 @@ function initWorkers() {
   };
 
   // Jpegli Worker
-  const workerJpegliUrl = "./worker-jpegli.js?v=" + Date.now();
+  const workerJpegliUrl = "./jpegli/worker.js?v=" + Date.now();
   workerJpegli = new Worker(workerJpegliUrl);
   workerJpegli.onmessage = (e) => {
     if (e.data.type === "ready") {

@@ -9,7 +9,7 @@ var Module = {
 };
 
 // importScripts DESPUÉS de definir Module
-importScripts("./jpeg_encoder.js");
+importScripts("./encoder.js");
 
 self.onmessage = function (e) {
   if (!wasmReady) {

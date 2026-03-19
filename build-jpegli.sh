@@ -124,7 +124,7 @@ fi
 echo "Enlazando con: $LINK_LIBS"
 
 cd "$PROJECT_DIR"
-emcc src/jpegli_wrapper.cpp \
+emcc src/jpegli-wrapper.cpp \
     -I src/jpegli \
     -I src/jpegli/build_wasm/lib/include \
     -I src/jpegli/lib \
@@ -132,7 +132,7 @@ emcc src/jpegli_wrapper.cpp \
     -I src/jpegli/build_wasm/lib/include/jpegli \
     -I src/jpegli/third_party/highway \
     $LINK_LIBS \
-    -o build/jpegli_encoder.js \
+    -o build/jpegli/encoder.js \
     -s WASM=1 \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s INITIAL_MEMORY=134217728 \
@@ -144,17 +144,17 @@ emcc src/jpegli_wrapper.cpp \
 
 echo ""
 echo "========================================"
-if [ -f "$BUILD_OUT/jpegli_encoder.js" ] && [ -f "$BUILD_OUT/jpegli_encoder.wasm" ]; then
-    JS_SIZE=$(du -h "$BUILD_OUT/jpegli_encoder.js" | cut -f1)
-    WASM_SIZE=$(du -h "$BUILD_OUT/jpegli_encoder.wasm" | cut -f1)
+if [ -f "$BUILD_OUT/jpegli/encoder.js" ] && [ -f "$BUILD_OUT/jpegli/encoder.wasm" ]; then
+    JS_SIZE=$(du -h "$BUILD_OUT/jpegli/encoder.js" | cut -f1)
+    WASM_SIZE=$(du -h "$BUILD_OUT/jpegli/encoder.wasm" | cut -f1)
     echo " ¡ÉXITO!"
-    echo " jpegli_encoder.js:   $JS_SIZE"
-    echo " jpegli_encoder.wasm: $WASM_SIZE"
+    echo " encoder.js:   $JS_SIZE"
+    echo " encoder.wasm: $WASM_SIZE"
 
     echo ""
     echo "Copiando archivos a la carpeta web..."
-    cp "$BUILD_OUT/jpegli_encoder.js" "$WEB_DIR/"
-    cp "$BUILD_OUT/jpegli_encoder.wasm" "$WEB_DIR/"
+    cp "$BUILD_OUT/jpegli/encoder.js" "$WEB_DIR/jpegli/"
+    cp "$BUILD_OUT/jpegli/encoder.wasm" "$WEB_DIR/jpegli/"
     echo "¡Archivos copiados con éxito!"
 else
     echo " ERROR: No se generaron los archivos de salida."

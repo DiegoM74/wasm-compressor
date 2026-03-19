@@ -56,13 +56,13 @@ El proyecto incluye scripts de automatización para facilitar la compilación de
 
 ```bash
 # Requisitos: Emscripten SDK instalado y activado
-# Asegúrate de haber ejecutado: source /ruta/a/emsdk/emsdk_env.sh
+# Asegúrate de haber ejecutado: source ~/emsdk/emsdk_env.sh (actualiza la ruta si es necesario)
 
 # Para compilar MozJPEG
-bash build_mozjpeg.sh
+bash build-mozjpeg.sh
 
 # Para compilar Jpegli
-bash build_jpegli.sh
+bash build-jpegli.sh
 ```
 
 Los scripts son generales y pueden ejecutarse en cualquier PC con Emscripten. Se encargan de:
@@ -76,41 +76,41 @@ Los scripts son generales y pueden ejecutarse en cualquier PC con Emscripten. Se
 ## Estructura del Proyecto
 
 ```
-jpeg-compressor-wasm/
+wasm-compressor/
 ├── README.md               # Este archivo de documentación
 ├── .gitignore              # Archivo de ignorado para git
-├── build_mozjpeg.sh        # Script de compilación automatizada para MozJPEG
-├── build_jpegli.sh         # Script de compilación automatizada para Jpegli
+├── build-mozjpeg.sh        # Script de compilación automatizada para MozJPEG
+├── build-jpegli.sh         # Script de compilación automatizada para Jpegli
 ├── build/                  # Directorio de archivos compilados finales
-│   ├── jpeg_encoder.js     # Módulo JS de MozJPEG
-│   ├── jpeg_encoder.wasm   # Binario WASM de MozJPEG
-│   ├── jpegli_encoder.js   # Módulo JS de Jpegli
-│   └── jpegli_encoder.wasm # Binario WASM de Jpegli
+│   ├── mozjpeg/            # Binarios de MozJPEG
+│   │   ├── encoder.js
+│   │   └── encoder.wasm
+│   └── jpegli/             # Binarios de Jpegli
+│       ├── encoder.js
+│       └── encoder.wasm
 ├── src/                    # Código fuente C/C++
-│   ├── jpeg_wrapper.c      # Wrapper para MozJPEG
-│   ├── jpegli_wrapper.cpp  # Wrapper para Jpegli
+│   ├── mozjpeg-wrapper.c   # Wrapper para MozJPEG
+│   ├── jpegli-wrapper.cpp  # Wrapper para Jpegli
 │   ├── mozjpeg/            # Submódulo/Código de MozJPEG
 │   └── jpegli/             # Submódulo/Código de Jpegli (libjxl)
 └── web/                    # Aplicación frontend
     ├── index.html          # Interfaz de usuario (página principal)
     ├── main.js             # Lógica de la aplicación y modales
     ├── styles.css          # Estilos visuales
-    ├── worker.js           # Web Worker para MozJPEG
-    ├── worker-jpegli.js    # Web Worker para Jpegli
-    ├── jpeg_encoder.js     # (Auto-generado) Binario MozJPEG
-    ├── jpeg_encoder.wasm   # (Auto-generado) Binario MozJPEG
-    ├── jpegli_encoder.js   # (Auto-generado) Binario Jpegli
-    └── jpegli_encoder.wasm # (Auto-generado) Binario Jpegli
+    ├── favicon.ico
+    ├── mozjpeg/            # Directorio MozJPEG (JS/WASM/Worker)
+    │   ├── worker.js
+    │   ├── encoder.js
+    │   └── encoder.wasm
+    └── jpegli/             # Directorio Jpegli (JS/WASM/Worker)
+        ├── worker.js
+        ├── encoder.js
+        └── encoder.wasm
 ```
 
 ## Roadmap
 
 - **Fase Actual**: Integración completa de MozJPEG y Jpegli con soporte para configuración avanzada de parámetros.
-- **Próxima Fase**: Soporte para otros formatos de entrada (PNG, WebP) para optimizar su compresión.
-- **Futuro**: Soporte de otros codecs de salida modernos como WebP y AVIF.
-
-## Licencia
-
-Este proyecto se encuentra bajo la licencia MIT con dependencias en sus términos propios de licencia original.
+- **Futuro**: Soporte para otros formatos de entrada (PNG, WebP, AVIF) para optimizar su compresión.
 
 ---

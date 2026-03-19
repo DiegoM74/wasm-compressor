@@ -8,13 +8,13 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=1.5" />
+    <link rel="stylesheet" href="main.css?v=1.6" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
   </head>
   <body>
     <h1>Compresor JPEG WASM</h1>
-    <p class="subtitle">Compresión de imágenes en el navegador</p>
+    <p class="subtitle">Compresión de imágenes en el navegador (serverless)</p>
     <div id="drop-zone">
       <div class="drop-text">Arrastra tus imágenes JPEG aquí</div>
       <div class="drop-hint">
@@ -819,8 +819,9 @@
       </div>
     </div>
 
-    <script src="main.js?v=1.6.1"></script>
+    <script src="main.js?v=1.7"></script>
 
+    <!-- Script para el funcionamiento de los menús desplegables -->
     <script>
       document.querySelectorAll(".accordion-header").forEach(function (header) {
         header.addEventListener("click", function () {

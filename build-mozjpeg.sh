@@ -103,11 +103,11 @@ echo " Compilando el wrapper WASM final..."
 echo "========================================"
 
 cd "$PROJECT_DIR"
-emcc src/jpeg_wrapper.c \
+emcc src/mozjpeg-wrapper.c \
     -I src/mozjpeg \
     -I src/mozjpeg/build_wasm \
     "$BUILD_DIR/libjpeg.a" \
-    -o build/jpeg_encoder.js \
+    -o build/mozjpeg/encoder.js \
     -s WASM=1 \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s INITIAL_MEMORY=134217728 \
@@ -119,17 +119,17 @@ emcc src/jpeg_wrapper.c \
 
 echo ""
 echo "========================================"
-if [ -f "$BUILD_OUT/jpeg_encoder.js" ] && [ -f "$BUILD_OUT/jpeg_encoder.wasm" ]; then
-    JS_SIZE=$(du -h "$BUILD_OUT/jpeg_encoder.js" | cut -f1)
-    WASM_SIZE=$(du -h "$BUILD_OUT/jpeg_encoder.wasm" | cut -f1)
+if [ -f "$BUILD_OUT/mozjpeg/encoder.js" ] && [ -f "$BUILD_OUT/mozjpeg/encoder.wasm" ]; then
+    JS_SIZE=$(du -h "$BUILD_OUT/mozjpeg/encoder.js" | cut -f1)
+    WASM_SIZE=$(du -h "$BUILD_OUT/mozjpeg/encoder.wasm" | cut -f1)
     echo " ¡ÉXITO!"
-    echo " jpeg_encoder.js:   $JS_SIZE"
-    echo " jpeg_encoder.wasm: $WASM_SIZE"
+    echo " encoder.js:   $JS_SIZE"
+    echo " encoder.wasm: $WASM_SIZE"
     
     echo ""
     echo "Copiando archivos a la carpeta web..."
-    cp "$BUILD_OUT/jpeg_encoder.js" "$WEB_DIR/"
-    cp "$BUILD_OUT/jpeg_encoder.wasm" "$WEB_DIR/"
+    cp "$BUILD_OUT/mozjpeg/encoder.js" "$WEB_DIR/mozjpeg/"
+    cp "$BUILD_OUT/mozjpeg/encoder.wasm" "$WEB_DIR/mozjpeg/"
     echo "¡Archivos copiados con éxito!"
 else
     echo " ERROR: No se generaron los archivos de salida."
