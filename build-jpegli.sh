@@ -51,6 +51,8 @@ echo "========================================"
 cd "$BUILD_DIR"
 emcmake cmake "$JPEGLI_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_FLAGS_RELEASE="-Os -DNDEBUG" \
+    -DCMAKE_CXX_FLAGS_RELEASE="-Os -DNDEBUG" \
     -DJPEGXL_ENABLE_TOOLS=OFF \
     -DBUILD_TESTING=OFF \
     -DJPEGXL_ENABLE_BENCHMARK=OFF \
@@ -139,6 +141,9 @@ emcc src/jpegli-wrapper.cpp \
     -s MAXIMUM_MEMORY=536870912 \
     -s EXPORTED_RUNTIME_METHODS='["ccall","getValue","wasmMemory"]' \
     -s EXPORTED_FUNCTIONS='["_compress_image_jpegli","_free_result_data_jpegli","_malloc","_free"]' \
+    -s FILESYSTEM=0 \
+    -s ENVIRONMENT='web' \
+    --closure 1 \
     -Os \
     -DNDEBUG
 

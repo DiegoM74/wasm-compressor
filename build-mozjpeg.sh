@@ -60,7 +60,8 @@ emcmake cmake "$MOZJPEG_DIR" \
     -DWITH_SIMD=OFF \
     -DWITH_TURBOJPEG=OFF \
     -DPNG_SUPPORTED=OFF \
-    -DCMAKE_BUILD_TYPE=Release
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_FLAGS_RELEASE="-Os -DNDEBUG"
 
 JCONFIGINT="$BUILD_DIR/jconfigint.h"
 if [ ! -f "$JCONFIGINT" ]; then
@@ -114,7 +115,10 @@ emcc src/mozjpeg-wrapper.c \
     -s MAXIMUM_MEMORY=536870912 \
     -s EXPORTED_RUNTIME_METHODS='["ccall","getValue","wasmMemory"]' \
     -s EXPORTED_FUNCTIONS='["_compress_image","_free","_get_result_data","_get_result_size","_malloc"]' \
-    -O3 \
+    -s FILESYSTEM=0 \
+    -s ENVIRONMENT='web' \
+    --closure 1 \
+    -Os \
     -DNDEBUG
 
 echo ""
