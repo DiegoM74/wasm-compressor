@@ -42,8 +42,75 @@ h1 {
 .subtitle {
   color: var(--text-secondary);
   font-size: 1.1rem;
-  margin-bottom: 40px;
+  margin-bottom: 30px;
   font-weight: 400;
+}
+
+.lib-status-container {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.lib-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  padding: 6px 14px;
+  border-radius: 100px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: var(--transition);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.lib-status-pill.ready {
+  background: rgba(76, 175, 80, 0.1);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: var(--accent-secondary);
+}
+
+.lib-status-pill.error {
+  background: rgba(255, 82, 82, 0.1);
+  border-color: rgba(255, 82, 82, 0.3);
+  color: #ff5252;
+}
+
+.status-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.5;
+}
+
+.lib-status-pill.loading .status-icon {
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.lib-status-pill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--text-secondary);
+  transform: translateY(-1px);
+}
+
+.lib-status-pill.ready:hover {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: var(--accent-secondary);
+}
+
+.lib-status-pill.error:hover {
+  background: rgba(255, 82, 82, 0.15);
+  border-color: #ff5252;
 }
 
 #drop-zone {

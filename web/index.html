@@ -8,7 +8,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="main.css?v=1.7.1" />
+    <link rel="stylesheet" href="main.css?v=1.8" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="icon" type="image/x-icon" href="img/favicon.ico" />
   </head>
@@ -16,6 +16,22 @@
   <body>
     <h1>Compresor JPEG WASM</h1>
     <p class="subtitle">Compresión de imágenes en el navegador (serverless)</p>
+
+    <div class="lib-status-container">
+      <div id="status-mozjpeg" class="lib-status-pill">
+        <svg class="status-icon">
+          <use href="img/main.svg#refreshIcon"></use>
+        </svg>
+        <span>MozJPEG</span>
+      </div>
+
+      <div id="status-jpegli" class="lib-status-pill">
+        <svg class="status-icon">
+          <use href="img/main.svg#refreshIcon"></use>
+        </svg>
+        <span>Jpegli</span>
+      </div>
+    </div>
 
     <div id="drop-zone">
       <div class="drop-text">Arrastra tus imágenes JPEG aquí</div>
@@ -84,7 +100,7 @@
 
     <div id="image-list"></div>
 
-    <script src="main.js?v=2.0"></script>
+    <script src="main.js?v=2.1"></script>
     <script src="modal.js?v=1.1"></script>
   </body>
 </html>

@@ -11,6 +11,10 @@ const downloadJpegliBtn = document.getElementById("download-jpegli-btn");
 const statusText = document.getElementById("status");
 const statsDiv = document.getElementById("stats");
 const imageList = document.getElementById("image-list");
+
+const statusPillMoz = document.getElementById("status-mozjpeg");
+const statusPillJpegli = document.getElementById("status-jpegli");
+
 const listActions = document.getElementById("list-actions");
 const clearAllBtn = document.getElementById("clear-all-btn");
 
@@ -62,6 +66,8 @@ let workerJpegli = null;
 let isCompressing = false;
 let isMozReady = false;
 let isJpegliReady = false;
+let mozHasError = false;
+let jpegliHasError = false;
 
 function updateStatus(text, type = "default") {
   statusText.textContent = text;
@@ -72,15 +78,30 @@ function updateStatus(text, type = "default") {
 }
 
 function checkWorkerStatus() {
-  if (filesData.length > 0) return;
-  let msg = [];
-  if (isMozReady) msg.push("MozJPEG disponible");
-  else msg.push("MozJPEG no disponible");
+  updateLibPill(statusPillMoz, isMozReady, mozHasError, "MozJPEG");
+  updateLibPill(statusPillJpegli, isJpegliReady, jpegliHasError, "Jpegli");
+}
 
-  if (isJpegliReady) msg.push("Jpegli disponible");
-  else msg.push("Jpegli no disponible");
+function updateLibPill(pill, isReady, hasError, name) {
+  if (!pill) return;
+  const icon = pill.querySelector("use");
+  const span = pill.querySelector("span");
 
-  updateStatus(`${msg.join(" | ")}`, "info");
+  pill.className = "lib-status-pill";
+
+  if (isReady) {
+    pill.classList.add("ready");
+    icon.setAttribute("href", "img/main.svg#checkIcon");
+    span.textContent = `${name} disponible`;
+  } else if (hasError) {
+    pill.classList.add("error");
+    icon.setAttribute("href", "img/main.svg#errorIcon");
+    span.textContent = `${name} no disponible`;
+  } else {
+    pill.classList.add("loading");
+    icon.setAttribute("href", "img/main.svg#refreshIcon");
+    span.textContent = `${name} cargando...`;
+  }
 }
 
 function compressImageMoz(buffer) {
@@ -167,6 +188,11 @@ function initWorkers() {
       updateButtonsState();
     }
   };
+  workerMoz.onerror = (e) => {
+    console.error("MozJPEG worker error:", e);
+    mozHasError = true;
+    checkWorkerStatus();
+  };
 
   // Jpegli Worker
   const workerJpegliUrl = "./jpegli/worker.js?v=" + Date.now();
@@ -178,10 +204,14 @@ function initWorkers() {
       updateButtonsState();
     } else if (e.data.type === "error") {
       console.error("Jpegli worker error:", e.data.message);
+      jpegliHasError = true;
+      checkWorkerStatus();
     }
   };
   workerJpegli.onerror = (e) => {
     console.error("Jpegli worker error:", e);
+    jpegliHasError = true;
+    checkWorkerStatus();
   };
 
   checkWorkerStatus();
