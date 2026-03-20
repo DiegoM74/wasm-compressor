@@ -1,0 +1,254 @@
+/* compare.css */
+/* Estilos adicionales para los botones de lista */
+.item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.compare-btn {
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: rgba(0, 188, 212, 0.1);
+  border: 1px solid rgba(0, 188, 212, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.compare-btn:hover:not(:disabled) {
+  color: #000;
+  background: var(--accent-primary);
+  box-shadow: 0 4px 12px rgba(0, 188, 212, 0.3);
+  transform: translateY(-2px);
+}
+
+.compare-btn:disabled {
+  opacity: 0.3;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
+/* Modal de comparación */
+.compare-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+  animation: none !important; /* overrides body > * fadeIn */
+}
+
+.compare-modal-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.compare-header {
+  height: 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  z-index: 10;
+}
+
+.compare-selectors {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.compare-mode-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #222;
+  color: white;
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.compare-mode-label {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.compare-close-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.compare-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: none; /* remove main button hover effect */
+}
+
+.compare-close-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.compare-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none; /* prevents default touch actions like scroll */
+}
+
+.compare-slider-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  background-image:
+    linear-gradient(45deg, #1a1a1a 25%, transparent 25%),
+    linear-gradient(-45deg, #1a1a1a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1a1a1a 75%),
+    linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0px;
+}
+
+.compare-slider-container:active {
+  cursor: grabbing;
+}
+
+.compare-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.compare-layer-left {
+  z-index: 1;
+}
+
+.compare-layer-right {
+  z-index: 2;
+  clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
+}
+
+.zoom-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.compare-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.compare-slider-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  z-index: 3;
+}
+
+.compare-slider-hitarea {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -20px;
+  right: -20px;
+  cursor: ew-resize;
+  z-index: 4;
+}
+
+.compare-slider-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  background: var(--accent-primary);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+}
+
+.compare-slider-button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  background: var(--card-bg);
+  border: 2px solid var(--accent-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
+  color: var(--accent-primary);
+}
+
+.compare-slider-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.compare-labels-container {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 40px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.compare-label {
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: "Inter", sans-serif;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}

@@ -118,6 +118,29 @@ function updateUI() {
   listActions.style.display = filesData.length > 0 ? "flex" : "none";
   clearAllBtn.disabled = isCompressing;
 
+  // Actualizar botones de elementos individuales en la lista
+  document.querySelectorAll(".image-item").forEach(item => {
+    const id = item.id.replace("item-", "");
+    const f = filesData.find(file => file.id === id);
+    if (!f) return;
+    
+    const actionsDiv = item.querySelector(".item-actions");
+    if (actionsDiv) {
+      const compareBtn = actionsDiv.querySelector(".compare-btn");
+      const deleteBtn = actionsDiv.querySelector(".delete-btn");
+      if (compareBtn) {
+        compareBtn.disabled = isCompressing || (!f.mozjpegBuffer && !f.jpegliBuffer);
+      }
+      if (deleteBtn) {
+        deleteBtn.disabled = isCompressing;
+      }
+    }
+  });
+
+  document.querySelectorAll(".unsupported-item .delete-btn").forEach(btn => {
+    btn.disabled = isCompressing;
+  });
+
   // Stats globales
   updateTotalStats(validFiles);
 }
@@ -387,14 +410,26 @@ function renderList() {
     const stats = document.createElement("div");
     stats.className = "image-stats";
 
-    const btn = document.createElement("button");
-    btn.className = "delete-btn";
-    btn.textContent = "Eliminar";
-    btn.disabled = isCompressing;
-    btn.onclick = () => removeFile(file.id);
+    const actionsDiv = document.createElement("div");
+    actionsDiv.className = "item-actions";
 
+    const compareBtn = document.createElement("button");
+    compareBtn.className = "compare-btn";
+    compareBtn.textContent = "Comparar";
+    compareBtn.disabled = isCompressing || (!file.mozjpegBuffer && !file.jpegliBuffer);
+    compareBtn.onclick = () => {
+      if (window.openCompareModal) window.openCompareModal(file.id);
+    };
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "delete-btn";
+    deleteBtn.textContent = "Eliminar";
+    deleteBtn.disabled = isCompressing;
+    deleteBtn.onclick = () => removeFile(file.id);
+
+    actionsDiv.append(compareBtn, deleteBtn);
     info.append(name, stats);
-    item.append(img, info, btn);
+    item.append(img, info, actionsDiv);
     imageList.appendChild(item);
 
     updateFileDOM(file);
@@ -424,6 +459,14 @@ function updateFileDOM(file) {
   }
 
   statsEl.innerHTML = html;
+
+  const actionsDiv = item.querySelector(".item-actions");
+  if (actionsDiv) {
+    const compareBtn = actionsDiv.querySelector(".compare-btn");
+    if (compareBtn) {
+      compareBtn.disabled = isCompressing || (!file.mozjpegBuffer && !file.jpegliBuffer);
+    }
+  }
 }
 
 // ── Compresión ──
