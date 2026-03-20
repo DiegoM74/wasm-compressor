@@ -1,4 +1,6 @@
-// ── DOM helpers ────────────────────────────────────────────────────────────────
+// ── DOM helpers ──
+const g = (id) => document.getElementById(id);
+
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -6,8 +8,9 @@ function el(tag, attrs = {}, ...children) {
     else if (k === "text") node.textContent = v;
     else node.setAttribute(k, v);
   }
+
   for (const child of children) {
-    if (child) node.append(typeof child === "string" ? child : child);
+    if (child) node.append(child);
   }
   return node;
 }
@@ -16,7 +19,7 @@ function helpIcon(title) {
   return el("span", { class: "help-icon", title }, "?");
 }
 
-/** Full slider form-group */
+// Slider con etiqueta y valor en tiempo real
 function sliderGroup({
   id,
   label,
@@ -27,6 +30,7 @@ function sliderGroup({
   step,
   divisor,
   extraAttrs = {},
+  extraClass = "",
 }) {
   const valueId = `${id}-value`;
   const displayVal = divisor ? (value / divisor).toFixed(2) : String(value);
@@ -50,20 +54,20 @@ function sliderGroup({
     ...extraAttrs,
   };
   if (step !== undefined) inputAttrs.step = String(step);
-  const input = el("input", inputAttrs);
 
-  const group = el("div", { class: "form-group" }, lbl, input);
-  return group;
+  return el(
+    "div",
+    { class: `form-group${extraClass ? " " + extraClass : ""}` },
+    lbl,
+    el("input", inputAttrs),
+  );
 }
 
-/** Checkbox form-group */
+// Checkbox con etiqueta
 function checkboxGroup({ id, label, help, checked = false, extraClass = "" }) {
+  const cb = el("input", { type: "checkbox", id });
+  cb.checked = checked; // propiedad, no atributo, para evitar problemas con el estado actual vs default
   const lbl = el("label");
-  const cb = el("input", {
-    type: "checkbox",
-    id,
-    ...(checked ? { checked: "" } : {}),
-  });
   lbl.append(cb, " ", label, " ", helpIcon(help));
   return el(
     "div",
@@ -72,24 +76,21 @@ function checkboxGroup({ id, label, help, checked = false, extraClass = "" }) {
   );
 }
 
-/** Select form-group */
+// Select con opciones
 function selectGroup({ id, label, help, options }) {
   const lbl = el("label");
   lbl.append(label, " ", helpIcon(help));
 
   const select = el("select", { id });
   for (const { value, text, selected } of options) {
-    const opt = el(
-      "option",
-      { value: String(value), ...(selected ? { selected: "" } : {}) },
-      text,
-    );
+    const opt = el("option", { value: String(value) }, text);
+    if (selected) opt.selected = true;
     select.append(opt);
   }
   return el("div", { class: "form-group" }, lbl, select);
 }
 
-/** Accordion section */
+// Sección acordeón colapsable
 function accordion(title, ...children) {
   const header = el(
     "button",
@@ -101,7 +102,7 @@ function accordion(title, ...children) {
   return el("div", { class: "accordion-section" }, header, body);
 }
 
-/** Subtitle paragraph shown at top of each modal */
+// Párrafo de instrucciones que encabeza cada modal
 function modalSubtitle() {
   const p = el("p", { class: "modal-subtitle" });
   p.append(
@@ -112,29 +113,25 @@ function modalSubtitle() {
   return p;
 }
 
-/** Full modal shell */
-function makeModal(id, title, bodyChildren, footerIds) {
-  const { cancelId, applyId } = footerIds;
-  const modalBody = el("div", { class: "modal-body" }, ...bodyChildren);
-  const footer = el(
-    "div",
-    { class: "modal-footer" },
-    el("button", { id: cancelId, class: "modal-btn cancel" }, "Cancelar"),
-    el("button", { id: applyId, class: "modal-btn" }, "Aplicar"),
-  );
+// Estructura completa de una modal
+function makeModal(id, title, bodyChildren, { cancelId, applyId }) {
   const content = el(
     "div",
     { class: "modal-content" },
     el("h2", {}, title),
     modalSubtitle(),
-    modalBody,
-    footer,
+    el("div", { class: "modal-body" }, ...bodyChildren),
+    el(
+      "div",
+      { class: "modal-footer" },
+      el("button", { id: cancelId, class: "modal-btn cancel" }, "Cancelar"),
+      el("button", { id: applyId, class: "modal-btn" }, "Aplicar"),
+    ),
   );
   return el("div", { id, class: "modal" }, content);
 }
 
-// ── MozJPEG modal ──────────────────────────────────────────────────────────────
-
+// ── Modal MozJPEG ──
 function buildMozjpegModal() {
   const chromaOpts = [
     { value: 0, text: "4:4:4 (mejor calidad)" },
@@ -158,25 +155,28 @@ function buildMozjpegModal() {
     { value: 2, text: "2 — DC luma/croma separados" },
   ];
 
+  // Clase compartida por los tres sliders de escala RD
+  const LAMBDA_CLASS = "moz-lambda-manual moz-lambda-disabled";
+
   const trellis = accordion(
     "Trellis quantization",
     checkboxGroup({
       id: "moz-trellis",
       label: "Trellis AC",
-      help: "Optimización rate-distortion de coeficientes AC. Mayor reducción de tamaño a misma calidad percibida. Aumenta el tiempo de compresión ~20%.",
       checked: true,
+      help: "Optimización rate-distortion de coeficientes AC. Mayor reducción de tamaño a misma calidad percibida. Aumenta el tiempo de compresión ~20%.",
     }),
     checkboxGroup({
       id: "moz-trellis-dc",
       label: "Trellis DC",
-      help: "Aplica trellis también a los coeficientes DC (componente de brillo promedio de cada bloque 8x8). Ligera mejora de compresión adicional.",
       checked: true,
+      help: "Aplica trellis también a los coeficientes DC (componente de brillo promedio de cada bloque 8x8). Ligera mejora de compresión adicional.",
     }),
     checkboxGroup({
       id: "moz-trellis-eob-opt",
       label: "Optimizar posición EOB",
-      help: "Optimiza la posición del marcador End-Of-Block durante trellis. Mejora la compresión del stream de coeficientes.",
       checked: true,
+      help: "Optimiza la posición del marcador End-Of-Block durante trellis. Mejora la compresión del stream de coeficientes.",
     }),
     checkboxGroup({
       id: "moz-use-scans-in-trellis",
@@ -211,8 +211,8 @@ function buildMozjpegModal() {
     checkboxGroup({
       id: "moz-optimize-scans",
       label: "Optimizar parámetros de scan",
-      help: "Busca la partición óptima del espectro DCT en scans separados. Hace archivos progresivos más pequeños. Requiere modo progresivo.",
       checked: true,
+      help: "Busca la partición óptima del espectro DCT en scans separados. Hace archivos progresivos más pequeños. Requiere modo progresivo.",
     }),
     selectGroup({
       id: "moz-dc-scan-opt-mode",
@@ -227,106 +227,64 @@ function buildMozjpegModal() {
     checkboxGroup({
       id: "moz-tune-ssim",
       label: "Optimizar para SSIM",
-      help: "Ajusta internamente los pesos de trellis para maximizar el índice SSIM (similitud estructural). Produce resultados visualmente más agradables.",
       checked: true,
+      help: "Ajusta internamente los pesos de trellis para maximizar el índice SSIM (similitud estructural). Produce resultados visualmente más agradables.",
     }),
     checkboxGroup({
       id: "moz-overshoot-deringing",
       label: "Overshoot deringing",
-      help: "Preprocesa píxeles con valores extremos (p.ej. 0 y 255) para reducir el efecto ringing. Especialmente útil en texto negro sobre fondo blanco. No afecta al tamaño.",
       checked: true,
+      help: "Preprocesa píxeles con valores extremos (p.ej. 0 y 255) para reducir el efecto ringing. Especialmente útil en texto negro sobre fondo blanco. No afecta al tamaño.",
     }),
   );
 
-  const rdHint = el(
-    "p",
-    { class: "rd-hint" },
-    "Estos parámetros controlan el balance rate-distortion interno del trellis. Déjalos en “auto” salvo que sepas lo que haces.",
-  );
   const rdAdvanced = accordion(
     "Avanzado — escalas RD",
-    rdHint,
+    el(
+      "p",
+      { class: "rd-hint" },
+      "Estos parámetros controlan el balance rate-distortion interno del trellis. Déjalos en “auto” salvo que sepas lo que haces.",
+    ),
     checkboxGroup({
       id: "moz-lambda-auto",
       label: "Usar valores por defecto (auto)",
-      help: "Si está marcado, las tres escalas de abajo se ignoran y MozJPEG usa sus valores internos.",
       checked: true,
+      help: "Si está marcado, las tres escalas de abajo se ignoran y MozJPEG usa sus valores internos.",
     }),
-    el(
-      "div",
-      { class: "form-group moz-lambda-manual moz-lambda-disabled" },
-      (() => {
-        const lbl = el("label");
-        lbl.append(
-          "lambda_log_scale1 ",
-          helpIcon(
-            "Escala logarítmica que pondera la fidelidad (distorsión). Default interno ≈ 14.75 en tune PSNR-HVS.",
-          ),
-          " ",
-          el("span", { id: "moz-lambda1-value" }, "14.75"),
-        );
-        return lbl;
-      })(),
-      el("input", {
-        type: "range",
-        id: "moz-lambda1",
-        min: "0",
-        max: "3000",
-        value: "1475",
-        step: "25",
-        class: "slider",
-      }),
-    ),
-    el(
-      "div",
-      { class: "form-group moz-lambda-manual moz-lambda-disabled" },
-      (() => {
-        const lbl = el("label");
-        lbl.append(
-          "lambda_log_scale2 ",
-          helpIcon(
-            "Escala logarítmica que pondera el tamaño (rate). Default interno ≈ 16.5.",
-          ),
-          " ",
-          el("span", { id: "moz-lambda2-value" }, "16.50"),
-        );
-        return lbl;
-      })(),
-      el("input", {
-        type: "range",
-        id: "moz-lambda2",
-        min: "0",
-        max: "3000",
-        value: "1650",
-        step: "25",
-        class: "slider",
-      }),
-    ),
-    el(
-      "div",
-      { class: "form-group moz-lambda-manual moz-lambda-disabled" },
-      (() => {
-        const lbl = el("label");
-        lbl.append(
-          "trellis_delta_dc_weight ",
-          helpIcon(
-            "Peso del componente DC en la función de coste trellis. Default interno ≈ 1.0.",
-          ),
-          " ",
-          el("span", { id: "moz-delta-dc-value" }, "1.00"),
-        );
-        return lbl;
-      })(),
-      el("input", {
-        type: "range",
-        id: "moz-delta-dc",
-        min: "0",
-        max: "500",
-        value: "100",
-        step: "5",
-        class: "slider",
-      }),
-    ),
+    // Los tres sliders usan divisor:100 para mostrar el valor real como float
+    sliderGroup({
+      id: "moz-lambda1",
+      label: "lambda_log_scale1",
+      help: "Escala logarítmica que pondera la fidelidad (distorsión). Default interno ≈ 14.75 en tune PSNR-HVS.",
+      min: 0,
+      max: 3000,
+      value: 1475,
+      step: 25,
+      divisor: 100,
+      extraClass: LAMBDA_CLASS,
+    }),
+    sliderGroup({
+      id: "moz-lambda2",
+      label: "lambda_log_scale2",
+      help: "Escala logarítmica que pondera el tamaño (rate). Default interno ≈ 16.5.",
+      min: 0,
+      max: 3000,
+      value: 1650,
+      step: 25,
+      divisor: 100,
+      extraClass: LAMBDA_CLASS,
+    }),
+    sliderGroup({
+      id: "moz-delta-dc",
+      label: "trellis_delta_dc_weight",
+      help: "Peso del componente DC en la función de coste trellis. Default interno ≈ 1.0.",
+      min: 0,
+      max: 500,
+      value: 100,
+      step: 5,
+      divisor: 100,
+      extraClass: LAMBDA_CLASS,
+    }),
   );
 
   return makeModal(
@@ -350,14 +308,14 @@ function buildMozjpegModal() {
       checkboxGroup({
         id: "moz-progressive",
         label: "Progresivo",
-        help: "Codifica la imagen en múltiples pasadas. Archivos ligeramente más pequeños, mejor experiencia de carga en web. Necesario para optimize_scans.",
         checked: true,
+        help: "Codifica la imagen en múltiples pasadas. Archivos ligeramente más pequeños, mejor experiencia de carga en web. Necesario para optimize_scans.",
       }),
       checkboxGroup({
         id: "moz-optimize-coding",
         label: "Optimizar codificación Huffman",
-        help: "Genera tablas Huffman óptimas para cada imagen (2 pasadas). Reduce tamaño a costa de más tiempo.",
         checked: true,
+        help: "Genera tablas Huffman óptimas para cada imagen (2 pasadas). Reduce tamaño a costa de más tiempo.",
       }),
       selectGroup({
         id: "moz-base-quant-tbl",
@@ -376,8 +334,8 @@ function buildMozjpegModal() {
       checkboxGroup({
         id: "moz-write-jfif",
         label: "Incluir cabecera JFIF",
-        help: "La cabecera JFIF ocupa 18 bytes. Desactivarla ahorra ese espacio pero incumple el estándar (compatible con todos los navegadores web modernos).",
         checked: true,
+        help: "La cabecera JFIF ocupa 18 bytes. Desactivarla ahorra ese espacio pero incumple el estándar (compatible con todos los navegadores web modernos).",
       }),
       trellis,
       scanOpt,
@@ -388,8 +346,7 @@ function buildMozjpegModal() {
   );
 }
 
-// ── Jpegli modal ───────────────────────────────────────────────────────────────
-
+// ── Modal Jpegli ──
 function buildJpegliModal() {
   const subsamplingOpts = [
     { value: 0, text: "4:4:4 (mejor calidad)" },
@@ -418,14 +375,14 @@ function buildJpegliModal() {
     checkboxGroup({
       id: "jpegli-adaptive-quant",
       label: "Cuantización adaptativa",
-      help: "Exclusivo de Jpegli (heredado de JPEG XL). Analiza la imagen bloque a bloque y ajusta la cuantización según el contenido local. Mejora la calidad percibida sin aumentar el tamaño. Recomendado activado.",
       checked: true,
+      help: "Exclusivo de Jpegli (heredado de JPEG XL). Analiza la imagen bloque a bloque y ajusta la cuantización según el contenido local. Mejora la calidad percibida sin aumentar el tamaño. Recomendado activado.",
     }),
     checkboxGroup({
       id: "jpegli-optimize-coding",
       label: "Optimizar codificación Huffman",
-      help: "Genera tablas Huffman óptimas para cada imagen en lugar de usar las estándar. Reduce el tamaño a costa de una segunda pasada de codificación.",
       checked: true,
+      help: "Genera tablas Huffman óptimas para cada imagen en lugar de usar las estándar. Reduce el tamaño a costa de una segunda pasada de codificación.",
     }),
     checkboxGroup({
       id: "jpegli-use-std-tables",
@@ -439,7 +396,7 @@ function buildJpegliModal() {
     checkboxGroup({
       id: "jpegli-xyb-mode",
       label: "Modo XYB",
-      help: "Usa el espacio de color XYB de JPEG XL en lugar de YCbCr estándar. Aplica tablas de cuantización especializadas para los canales X/Y/B que explotan mejor la sensibilidad visual humana. Produce archivos JPEG normales compatibles con cualquier visor. Solo disponible para imágenes RGB.",
+      help: "(No recomendable activar, puede afectar los colores y detalles de la imagen) Usa el espacio de color XYB de JPEG XL en lugar de YCbCr estándar. Aplica tablas de cuantización especializadas para los canales X/Y/B que explotan mejor la sensibilidad visual humana. Solo disponible para imágenes RGB.",
     }),
     selectGroup({
       id: "jpegli-cicp-transfer",
@@ -454,7 +411,7 @@ function buildJpegliModal() {
     sliderGroup({
       id: "jpegli-smoothing-factor",
       label: "Suavizado",
-      help: "Aplica un filtro al input antes de comprimir (0 = ninguno, 100 = máximo). Reduce artefactos en imágenes ruidosas a costa de borrar detalle fino. En la mayoría de casos dejarlo en 0.",
+      help: "Aplica un filtro al input antes de comprimir (0 = ninguno, 100 = máximo). Reduce artefactos en imágenes ruidosas a costa de borrar detalle fino.",
       min: 0,
       max: 100,
       value: 0,
@@ -472,7 +429,7 @@ function buildJpegliModal() {
     }),
   );
 
-  // quality-row starts hidden because use_distance defaults to true
+  // quality-row empieza oculto porque use_distance es true por defecto
   const qualityRow = sliderGroup({
     id: "jpegli-quality",
     label: "Calidad",
@@ -487,15 +444,15 @@ function buildJpegliModal() {
   const distanceRow = sliderGroup({
     id: "jpegli-distance",
     label: "Distance",
-    help: "Distancia perceptual butteraugli (heredada de JPEG XL). Menor = mayor calidad. 0.5 = casi sin pérdidas, 1.0 ≈ calidad 90, 1.5 ≈ calidad 85, 2.0 ≈ calidad 80, 3.0 = compresión agresiva.",
+    help: "Distancia perceptual butteraugli (heredada de JPEG XL). Menor = mayor calidad. 0.5 = casi sin pérdidas, 1.0 ≈ calidad 90, 2.0 ≈ calidad 80, 3.0 = compresión agresiva.",
     min: 0.1,
     max: 5.0,
     value: 1.5,
     extraAttrs: { step: "0.1" },
   });
   distanceRow.id = "jpegli-distance-row";
-  // override display value
-  distanceRow.querySelector(`#jpegli-distance-value`).textContent = "1.5";
+  // El valor inicial debe mostrarse con 1 decimal (sliderGroup usa toFixed(2) solo con divisor)
+  distanceRow.querySelector("#jpegli-distance-value").textContent = "1.5";
 
   return makeModal(
     "modal-jpegli",
@@ -506,8 +463,8 @@ function buildJpegliModal() {
       checkboxGroup({
         id: "jpegli-use-distance",
         label: "Usar métrica Distance (recomendado)",
-        help: "Distance es la métrica nativa de Jpegli (de JPEG XL) y produce mejores resultados. Desmárcalo si prefieres el parámetro 'quality' tradicional de libjpeg.",
         checked: true,
+        help: "Distance es la métrica nativa de Jpegli (de JPEG XL) y produce mejores resultados. Desmárcalo si prefieres el parámetro “quality” tradicional de libjpeg.",
       }),
       selectGroup({
         id: "jpegli-subsampling",
@@ -529,14 +486,10 @@ function buildJpegliModal() {
   );
 }
 
-// ── Inject modals ──────────────────────────────────────────────────────────────
-
+// ── Inyectar modales en el DOM ──
 document.body.append(buildMozjpegModal(), buildJpegliModal());
 
-// ── Element refs ───────────────────────────────────────────────────────────────
-
-const g = (id) => document.getElementById(id);
-
+// ── Referencias a elementos del DOM ──
 // MozJPEG
 const modalMoz = g("modal-mozjpeg");
 const mozQuality = g("moz-quality");
@@ -570,8 +523,7 @@ const jpegliAdaptiveQuant = g("jpegli-adaptive-quant");
 const jpegliApply = g("jpegli-apply");
 const jpegliCancel = g("jpegli-cancel");
 
-// ── Accordion logic ────────────────────────────────────────────────────────────
-
+// ── Lógica de acordeón ──
 document.querySelectorAll(".accordion-header").forEach((header) => {
   header.addEventListener("click", function () {
     const expanded = this.getAttribute("aria-expanded") === "true";
@@ -581,10 +533,9 @@ document.querySelectorAll(".accordion-header").forEach((header) => {
   });
 });
 
-// ── MozJPEG logic ──────────────────────────────────────────────────────────────
-
+// ── Listeners internos de la modal MozJPEG ──
 function initMozjpegModalListeners() {
-  // Integer sliders
+  // Sliders enteros: sincroniza etiqueta con el valor del slider
   for (const [sliderId, labelId] of Object.entries({
     "moz-quality": "moz-quality-value",
     "moz-smoothing": "moz-smoothing-value",
@@ -599,7 +550,7 @@ function initMozjpegModalListeners() {
       });
   }
 
-  // Float sliders
+  // Sliders flotantes: el valor se almacena ×100 como entero, se muestra dividido
   for (const [sliderId, { labelId, divisor }] of Object.entries({
     "moz-lambda1": { labelId: "moz-lambda1-value", divisor: 100 },
     "moz-lambda2": { labelId: "moz-lambda2-value", divisor: 100 },
@@ -613,7 +564,7 @@ function initMozjpegModalListeners() {
       });
   }
 
-  // Lambda auto toggle
+  // Cuando "auto" está activo, los sliders lambda se muestran deshabilitados visualmente
   g("moz-lambda-auto")?.addEventListener("change", (e) => {
     document.querySelectorAll(".moz-lambda-manual").forEach((el) => {
       el.classList.toggle("moz-lambda-disabled", e.target.checked);
@@ -621,8 +572,24 @@ function initMozjpegModalListeners() {
   });
 }
 
+// ── Listeners internos de la modal Jpegli ──
+function initJpegliModalListeners() {
+  jpegliQuality.addEventListener("input", () => {
+    jpegliQualityVal.textContent = jpegliQuality.value;
+  });
+  jpegliSmoothingFactor.addEventListener("input", () => {
+    jpegliSmoothingVal.textContent = jpegliSmoothingFactor.value;
+  });
+  jpegliDistance.addEventListener("input", () => {
+    jpegliDistanceVal.textContent = parseFloat(jpegliDistance.value).toFixed(1);
+  });
+  jpegliUseDistance.addEventListener("change", updateJpegliQualityMode);
+}
+
+// ── Lógica de configuración MozJPEG ──
 function applyMozjpegConfig() {
   if (typeof mozjpegConfig === "undefined") return;
+
   mozjpegConfig.quality = parseInt(g("moz-quality").value);
   mozjpegConfig.progressive = g("moz-progressive").checked;
   mozjpegConfig.optimize_coding = g("moz-optimize-coding").checked;
@@ -636,7 +603,6 @@ function applyMozjpegConfig() {
   mozjpegConfig.trellis_q_opt = g("moz-trellis-q-opt").checked;
   mozjpegConfig.overshoot_deringing = g("moz-overshoot-deringing").checked;
   mozjpegConfig.optimize_scans = g("moz-optimize-scans").checked;
-  mozjpegConfig.tune_ssim = g("moz-tune-ssim").checked;
   mozjpegConfig.base_quant_tbl = parseInt(g("moz-base-quant-tbl").value);
   mozjpegConfig.trellis_freq_split = parseInt(
     g("moz-trellis-freq-split").value,
@@ -644,8 +610,7 @@ function applyMozjpegConfig() {
   mozjpegConfig.trellis_num_loops = parseInt(g("moz-trellis-num-loops").value);
   mozjpegConfig.dc_scan_opt_mode = parseInt(g("moz-dc-scan-opt-mode").value);
 
-  const lambdaAuto = g("moz-lambda-auto")?.checked;
-  if (lambdaAuto) {
+  if (g("moz-lambda-auto")?.checked) {
     mozjpegConfig.lambda_log_scale1 = null;
     mozjpegConfig.lambda_log_scale2 = null;
     mozjpegConfig.trellis_delta_dc_weight = null;
@@ -657,6 +622,9 @@ function applyMozjpegConfig() {
   }
 }
 
+// Cuando el usuario activa "Optimizar para SSIM", se sobreescriben
+// base_quant_tbl y las escalas lambda con los valores óptimos para esa métrica.
+// Esto es un preset de conveniencia, no un parámetro del worker.
 function applyTuneSsimPreset(enabled) {
   if (!enabled || typeof mozjpegConfig === "undefined") return;
   mozjpegConfig.base_quant_tbl = 3;
@@ -664,32 +632,14 @@ function applyTuneSsimPreset(enabled) {
   mozjpegConfig.lambda_log_scale2 = 16.5;
 }
 
-// ── Jpegli logic ───────────────────────────────────────────────────────────────
-
+// ── Lógica de configuración Jpegli ──
 function updateJpegliQualityMode() {
   const useDistMode = jpegliUseDistance.checked;
   g("jpegli-quality-row").classList.toggle("jpegli-hidden", useDistMode);
   g("jpegli-distance-row").classList.toggle("jpegli-hidden", !useDistMode);
 }
 
-// ── Slider bindings ────────────────────────────────────────────────────────────
-
-mozQuality.addEventListener("input", () => {
-  mozQualityVal.textContent = mozQuality.value;
-});
-jpegliQuality.addEventListener("input", () => {
-  jpegliQualityVal.textContent = jpegliQuality.value;
-});
-jpegliSmoothingFactor.addEventListener("input", () => {
-  jpegliSmoothingVal.textContent = jpegliSmoothingFactor.value;
-});
-jpegliDistance.addEventListener("input", () => {
-  jpegliDistanceVal.textContent = parseFloat(jpegliDistance.value).toFixed(1);
-});
-jpegliUseDistance.addEventListener("change", updateJpegliQualityMode);
-
-// ── Modal open/close ───────────────────────────────────────────────────────────
-
+// ── Apertura y cierre de modales ──
 g("config-mozjpeg-btn").addEventListener("click", () => {
   if (typeof mozjpegConfig === "undefined") return;
   mozQuality.value = mozjpegConfig.quality;
@@ -697,19 +647,17 @@ g("config-mozjpeg-btn").addEventListener("click", () => {
   mozProgressive.checked = mozjpegConfig.progressive;
   mozTrellis.checked = mozjpegConfig.trellis;
   mozTrellisDc.checked = mozjpegConfig.trellis_dc;
-  mozTuneSsim.checked = mozjpegConfig.tune_ssim;
+  mozTuneSsim.checked = mozjpegConfig.tune_ssim ?? true;
   mozOptimizeScans.checked = mozjpegConfig.optimize_scans;
   modalMoz.classList.add("show");
 });
 
 mozApply.addEventListener("click", () => {
   applyMozjpegConfig();
-  if (mozjpegConfig.tune_ssim) applyTuneSsimPreset(true);
+  applyTuneSsimPreset(g("moz-tune-ssim").checked);
   modalMoz.classList.remove("show");
 });
-mozCancel.addEventListener("click", () => {
-  modalMoz.classList.remove("show");
-});
+mozCancel.addEventListener("click", () => modalMoz.classList.remove("show"));
 modalMoz.addEventListener("click", (e) => {
   if (e.target === modalMoz) modalMoz.classList.remove("show");
 });
@@ -753,13 +701,13 @@ jpegliApply.addEventListener("click", () => {
   jpegliConfig.baseline = jpegliBaseline.checked;
   modalJpegli.classList.remove("show");
 });
-jpegliCancel.addEventListener("click", () => {
-  modalJpegli.classList.remove("show");
-});
+jpegliCancel.addEventListener("click", () =>
+  modalJpegli.classList.remove("show"),
+);
 modalJpegli.addEventListener("click", (e) => {
   if (e.target === modalJpegli) modalJpegli.classList.remove("show");
 });
 
-// ── Init ───────────────────────────────────────────────────────────────────────
-
+// ── Arranque ──
 initMozjpegModalListeners();
+initJpegliModalListeners();
