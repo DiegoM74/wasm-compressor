@@ -940,8 +940,6 @@ mozApply.addEventListener("click", () => {
     applyTuneSsimPreset(true);
   }
   modalMoz.classList.remove("show");
-  if (typeof updateStatus === "function")
-    updateStatus("Configuración MozJPEG actualizada", "info");
 });
 
 mozCancel.addEventListener("click", () => {
@@ -993,8 +991,6 @@ jpegliApply.addEventListener("click", () => {
   jpegliConfig.baseline = jpegliBaseline.checked;
 
   modalJpegli.classList.remove("show");
-  if (typeof updateStatus === "function")
-    updateStatus("Configuración Jpegli actualizada", "info");
 });
 
 jpegliCancel.addEventListener("click", () => {
