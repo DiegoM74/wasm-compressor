@@ -374,7 +374,7 @@ button:disabled {
   margin-top: 10px;
 }
 
-/* Modal styles */
+/* Estilos de la modal */
 .modal {
   position: fixed;
   z-index: 1000;
@@ -539,7 +539,7 @@ button:disabled {
   background: var(--accent-primary);
 }
 
-/* Accordion */
+/* Acordeon */
 .accordion-section {
   border-top: 1px solid var(--border-color);
   padding-top: 4px;
@@ -602,7 +602,33 @@ button:disabled {
   margin-bottom: 8px;
 }
 
-/* Animations */
+.modal-subtitle {
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+.accordion-title {
+  font-weight: bold;
+  color: var(--accent-primary);
+}
+
+.rd-hint {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+}
+
+.moz-lambda-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.jpegli-hidden {
+  display: none;
+}
+
+/* Animaciones */
 @keyframes fadeIn {
   from {
     opacity: 0;
