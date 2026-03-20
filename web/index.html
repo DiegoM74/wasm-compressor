@@ -8,13 +8,15 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="main.css?v=1.7" />
+    <link rel="stylesheet" href="main.css?v=1.7.1" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="img/favicon.ico" />
   </head>
+
   <body>
     <h1>Compresor JPEG WASM</h1>
     <p class="subtitle">Compresión de imágenes en el navegador (serverless)</p>
+
     <div id="drop-zone">
       <div class="drop-text">Arrastra tus imágenes JPEG aquí</div>
       <div class="drop-hint">
@@ -28,6 +30,7 @@
         multiple
       />
     </div>
+
     <div class="controls-group">
       <div class="controls-main">
         <div class="controls">
@@ -35,6 +38,7 @@
           <button id="download-btn" disabled>Descargar</button>
         </div>
       </div>
+
       <div class="controls-libs">
         <div class="controls-lib">
           <span class="lib-label">MozJPEG</span>
@@ -45,9 +49,12 @@
             class="config-btn"
             title="Configurar MozJPEG"
           >
-            ⚙️
+            <svg class="config-icon">
+              <use href="img/main.svg#configIcon"></use>
+            </svg>
           </button>
         </div>
+
         <div class="controls-lib">
           <span class="lib-label">Jpegli</span>
           <button id="compress-jpegli-btn" disabled>Comprimir</button>
@@ -57,18 +64,24 @@
             class="config-btn"
             title="Configurar Jpegli"
           >
-            ⚙️
+            <svg class="config-icon">
+              <use href="img/main.svg#configIcon"></use>
+            </svg>
           </button>
         </div>
       </div>
     </div>
+
     <div id="status">Esperando imágenes...</div>
+
     <div id="stats"></div>
+
     <div id="list-actions" class="list-actions">
       <button id="clear-all-btn" class="delete-btn">
         Eliminar todas las imágenes
       </button>
     </div>
+
     <div id="image-list"></div>
 
     <script src="main.js?v=2.0"></script>
