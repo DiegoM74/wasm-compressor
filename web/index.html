@@ -171,14 +171,14 @@
               Tabla de cuantización base
               <span
                 class="help-icon"
-                title="Selecciona tablas de cuantización optimizadas para mejorar la calidad visual (HVS) o métricas técnicas (PSNR)."
+                title="Las tablas de cuantización determinan cuánto detalle se descarta en cada frecuencia espacial al comprimir. Las opciones estándar priorizan compatibilidad; las optimizadas (HVS, PSNR) preservan mejor la calidad visual percibida."
                 >?</span
               >
             </label>
             <select id="moz-base-quant-tbl">
               <option value="0" selected>0 — JPEG Annex K (estándar)</option>
               <option value="1">1 — Flat (uniforme)</option>
-              <option value="2">2 — Custom (bajo ringing)</option>
+              <option value="2">2 — MS-SSIM (ringing reducido)</option>
               <option value="3">3 — ImageMagick (alta frecuencia)</option>
               <option value="4">4 — PSNR-HVS-M Kodak</option>
               <option value="5">5 — HVS (visión humana)</option>
@@ -557,7 +557,7 @@
         </p>
         <div class="modal-body">
           <!-- ── Calidad ──────────────────────────────────────────────────── -->
-          <div class="form-group" id="jpegli-quality-row">
+          <div class="form-group" id="jpegli-quality-row" style="display: none">
             <label>
               Calidad
               <span
@@ -577,20 +577,16 @@
             />
           </div>
 
-          <!-- ── Distance (oculto por defecto) ──────────────────────────── -->
-          <div
-            class="form-group"
-            id="jpegli-distance-row"
-            style="display: none"
-          >
+          <!-- ── Distance ────────────────────────────────────────────────── -->
+          <div class="form-group" id="jpegli-distance-row">
             <label>
               Distance
               <span
                 class="help-icon"
-                title="Distancia perceptual butteraugli (heredada de JPEG XL). Menor = mayor calidad. 0.5 = casi sin pérdidas, 1.0 ≈ calidad 90, 2.0 ≈ calidad 80, 3.0 = compresión agresiva."
+                title="Distancia perceptual butteraugli (heredada de JPEG XL). Menor = mayor calidad. 0.5 = casi sin pérdidas, 1.0 ≈ calidad 90, 1.5 ≈ calidad 85, 2.0 ≈ calidad 80, 3.0 = compresión agresiva."
                 >?</span
               >
-              <span id="jpegli-distance-value">1.0</span>
+              <span id="jpegli-distance-value">1.5</span>
             </label>
             <input
               type="range"
@@ -598,7 +594,7 @@
               min="0.1"
               max="5.0"
               step="0.1"
-              value="1.0"
+              value="1.5"
               class="slider"
             />
           </div>
@@ -606,11 +602,11 @@
           <!-- Toggle quality ↔ distance -->
           <div class="form-group">
             <label>
-              <input type="checkbox" id="jpegli-use-distance" />
-              Usar Distance en lugar de Calidad
+              <input type="checkbox" id="jpegli-use-distance" checked />
+              Usar métrica Distance (recomendado)
               <span
                 class="help-icon"
-                title="Distance es la métrica nativa de Jpegli (de JPEG XL) y produce mejores resultados que el parámetro quality heredado de libjpeg."
+                title="Distance es la métrica nativa de Jpegli (de JPEG XL) y produce mejores resultados. Desmárcalo si prefieres el parámetro 'quality' tradicional de libjpeg."
                 >?</span
               >
             </label>
@@ -819,7 +815,7 @@
       </div>
     </div>
 
-    <script src="main.js?v=1.7"></script>
+    <script src="main.js?v=1.7.1"></script>
 
     <!-- Script para el funcionamiento de los menús desplegables -->
     <script>

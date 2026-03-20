@@ -46,8 +46,8 @@ let mozjpegConfig = {
 let jpegliConfig = {
   // Calidad
   quality: 85,
-  use_distance: false,
-  distance: 1.0,
+  use_distance: true,
+  distance: 1.5,
   // Color
   subsampling: 2,
   xyb_mode: false,
