@@ -1,9 +1,11 @@
+// ── Estado del modal de comparación ──
 let compareModal = null;
 let currentCompareUrls = [];
 let compareScale = 1;
 let compareTx = 0;
 let compareTy = 0;
 
+// ── Construcción del modal ──
 function initCompareModal() {
   if (compareModal) return;
 
@@ -19,32 +21,32 @@ function initCompareModal() {
           <svg><use href="img/main.svg#errorIcon"></use></svg>
         </button>
       </div>
+
       <div class="compare-body" id="compare-body">
         <div class="compare-slider-container" id="compare-container">
           <div class="compare-layer compare-layer-left">
             <div class="zoom-layer" id="zoom-layer-left">
-              <img id="compare-img-left" class="compare-img" />
+              <img id="compare-img-left" class="compare-img" alt="Imagen izquierda" />
             </div>
           </div>
+
           <div class="compare-layer compare-layer-right" id="compare-layer-right">
             <div class="zoom-layer" id="zoom-layer-right">
-              <img id="compare-img-right" class="compare-img" />
+              <img id="compare-img-right" class="compare-img" alt="Imagen derecha" />
             </div>
           </div>
-          
+
           <div class="compare-slider-handle" id="compare-handle">
             <div class="compare-slider-hitarea" id="compare-slider-hitarea"></div>
             <div class="compare-slider-line"></div>
             <div class="compare-slider-button">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 8l-4 4 4 4m8-8 4 4-4 4" />
-              </svg>
+              <svg><use href="img/main.svg#compareIcon"></use></svg>
             </div>
           </div>
-          
+
           <div class="compare-labels-container">
-             <div class="compare-label" id="compare-label-left">Original</div>
-             <div class="compare-label" id="compare-label-right">Comprimido</div>
+            <div class="compare-label" id="compare-label-left">Original</div>
+            <div class="compare-label" id="compare-label-right">Comprimido</div>
           </div>
         </div>
       </div>
@@ -52,21 +54,33 @@ function initCompareModal() {
   `;
 
   document.body.appendChild(compareModal);
+  attachCompareModalEvents();
+}
 
-  // Cerrar modal al clickear fuera, botones o en el close
-  compareModal.addEventListener("click", (e) => {
-    // Si se clickea el background puro (".compare-modal-overlay" o ".compare-body") cerramos.
-    // Ignoramos 'compare-container' porque es donde arrastramos el slider.
-    if (e.target === compareModal || e.target.id === "compare-body") {
-      closeCompareModal();
-    }
-  });
-
+// ── Eventos del modal ──
+function attachCompareModalEvents() {
   document
     .getElementById("compare-close")
     .addEventListener("click", closeCompareModal);
 
-  // Lógica del slider y zoom
+  // Cerrar con tecla Escape
+  document.addEventListener("keydown", handleEscapeKey);
+
+  attachInteractionEvents();
+}
+
+function handleEscapeKey(e) {
+  if (
+    e.key === "Escape" &&
+    compareModal &&
+    !compareModal.classList.contains("hidden")
+  ) {
+    closeCompareModal();
+  }
+}
+
+// ── Lógica de interacción (slider + paneo + zoom) ──
+function attachInteractionEvents() {
   const container = document.getElementById("compare-container");
   const layerRight = document.getElementById("compare-layer-right");
   const zoomLayerLeft = document.getElementById("zoom-layer-left");
@@ -78,60 +92,66 @@ function initCompareModal() {
   let lastPanX = 0;
   let lastPanY = 0;
 
+  // Aplica la transformación de zoom y paneo a ambas capas sincronizadas
   const applyTransform = () => {
     const transformStr = `translate(${compareTx}px, ${compareTy}px) scale(${compareScale})`;
     zoomLayerLeft.style.transform = transformStr;
     zoomLayerRight.style.transform = transformStr;
   };
 
+  // Mueve la línea del slider y recorta la capa derecha según la posición X
   const updateSlider = (clientX) => {
     const rect = container.getBoundingClientRect();
-    let x = clientX - rect.left;
-    x = Math.max(0, Math.min(x, rect.width));
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
     const percent = (x / rect.width) * 100;
 
     layerRight.style.clipPath = `polygon(${percent}% 0, 100% 0, 100% 100%, ${percent}% 100%)`;
     handle.style.left = `${percent}%`;
   };
 
+  // Extrae coordenadas de eventos de mouse o táctiles de forma uniforme
+  const getClientCoords = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    return { x: e.clientX, y: e.clientY };
+  };
+
   const startInteraction = (e) => {
+    // Ignorar clics en selects y botones para no interferir con sus propios handlers
     if (
       e.target.tagName.toLowerCase() === "select" ||
       e.target.closest("button")
     )
       return;
 
-    const clientX = e.type.includes("touch") ? e.touches[0].clientX : e.clientX;
-    const clientY = e.type.includes("touch") ? e.touches[0].clientY : e.clientY;
+    const { x, y } = getClientCoords(e);
 
     if (
       e.target.id === "compare-slider-hitarea" ||
       e.target.closest(".compare-slider-button")
     ) {
       isDraggingSlider = true;
-      updateSlider(clientX);
+      updateSlider(x);
     } else {
       isPanning = true;
-      lastPanX = clientX;
-      lastPanY = clientY;
+      lastPanX = x;
+      lastPanY = y;
     }
   };
 
   const moveInteraction = (e) => {
     if (!isDraggingSlider && !isPanning) return;
 
-    const clientX = e.type.includes("touch") ? e.touches[0].clientX : e.clientX;
-    const clientY = e.type.includes("touch") ? e.touches[0].clientY : e.clientY;
+    const { x, y } = getClientCoords(e);
 
     if (isDraggingSlider) {
-      updateSlider(clientX);
+      updateSlider(x);
     } else if (isPanning) {
-      const dx = clientX - lastPanX;
-      const dy = clientY - lastPanY;
-      compareTx += dx;
-      compareTy += dy;
-      lastPanX = clientX;
-      lastPanY = clientY;
+      compareTx += x - lastPanX;
+      compareTy += y - lastPanY;
+      lastPanX = x;
+      lastPanY = y;
       applyTransform();
     }
   };
@@ -142,24 +162,24 @@ function initCompareModal() {
   };
 
   const handleZoom = (e) => {
-    e.preventDefault(); // prevenir scroll real de la página por si acaso
+    e.preventDefault();
 
     const rect = container.getBoundingClientRect();
     const cursorX = e.clientX - rect.left;
     const cursorY = e.clientY - rect.top;
 
-    const zoomSpeed = 0.0015;
-    const zoomFactor = 1 - e.deltaY * zoomSpeed;
+    const zoomFactor = 1 - e.deltaY * 0.0015;
+    const newScale = Math.max(1, Math.min(compareScale * zoomFactor, 15));
 
-    let newScale = compareScale * zoomFactor;
-    newScale = Math.max(1, Math.min(newScale, 15)); // Limitar zoom entre 1x y 15x
+    if (newScale === compareScale) return;
 
     if (newScale === 1) {
-      // Si volvemos a x1, resetear paneo al centro
+      // Al volver a escala 1, centrar el paneo
       compareTx = 0;
       compareTy = 0;
-    } else if (newScale !== compareScale) {
-      // Math: x' = x - (x - tx) * (newScale / scale)
+    } else {
+      // Zoom anclado al cursor: ajustar la traslación para que el punto bajo
+      // el cursor se mantenga fijo visualmente
       compareTx = cursorX - (cursorX - compareTx) * (newScale / compareScale);
       compareTy = cursorY - (cursorY - compareTy) * (newScale / compareScale);
     }
@@ -168,29 +188,33 @@ function initCompareModal() {
     applyTransform();
   };
 
+  // Eventos de mouse
   container.addEventListener("mousedown", startInteraction);
   window.addEventListener("mousemove", moveInteraction);
   window.addEventListener("mouseup", stopInteraction);
 
+  // Eventos táctiles
   container.addEventListener("touchstart", startInteraction, { passive: true });
   window.addEventListener("touchmove", moveInteraction, { passive: true });
   window.addEventListener("touchend", stopInteraction);
 
-  // Evento de zoom
+  // Zoom con rueda
   container.addEventListener("wheel", handleZoom, { passive: false });
 }
 
+// ── Apertura y cierre ──
 function closeCompareModal() {
-  if (compareModal) {
-    compareModal.classList.add("hidden");
-  }
-  document.body.style.overflow = ""; // Restaurar scroll de la página original
+  if (!compareModal) return;
 
-  // Limpiar URLs temporales para evitar pérdida de memoria
+  compareModal.classList.add("hidden");
+  document.body.style.overflow = "";
+
+  // Liberar URLs de objeto temporales para evitar pérdidas de memoria
   currentCompareUrls.forEach((url) => URL.revokeObjectURL(url));
   currentCompareUrls = [];
 }
 
+// Crea una URL de objeto temporal y la registra para liberarla al cerrar
 function getTempUrl(buffer) {
   const url = URL.createObjectURL(new Blob([buffer], { type: "image/jpeg" }));
   currentCompareUrls.push(url);
@@ -198,44 +222,75 @@ function getTempUrl(buffer) {
 }
 
 function openCompareModal(fileId) {
+  // filesData es global en main.js
+  const file = filesData?.find((f) => f.id === fileId);
+  if (!file) {
+    console.warn(
+      `openCompareModal: no se encontró el archivo con id "${fileId}"`,
+    );
+    return;
+  }
+
+  // Construir el listado de versiones disponibles para comparar
+  const versions = buildVersions(file);
+  if (versions.length < 2) {
+    console.warn(
+      "openCompareModal: se necesitan al menos 2 versiones para comparar",
+    );
+    return;
+  }
+
   initCompareModal();
 
-  // filesData es global en main.js
-  const file = filesData.find((f) => f.id === fileId);
-  if (!file) return;
+  renderSelectors(versions);
+  compareModal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
 
-  const versions = [];
-  versions.push({ id: "orig", name: "Original", url: file.previewUrl });
+  resetSliderState();
+}
+
+// ── Construcción de versiones comparables ──
+function buildVersions(file) {
+  const versions = [
+    {
+      id: "orig",
+      name: "Original",
+      url: file.previewUrl,
+      size: file.originalSize,
+      originalSize: file.originalSize,
+    },
+  ];
 
   if (file.mozjpegBuffer) {
     versions.push({
       id: "mozjpeg",
       name: "MozJPEG",
       url: getTempUrl(file.mozjpegBuffer),
+      size: file.mozjpegSize,
+      originalSize: file.originalSize,
     });
   }
+
   if (file.jpegliBuffer) {
     versions.push({
       id: "jpegli",
       name: "Jpegli",
       url: getTempUrl(file.jpegliBuffer),
+      size: file.jpegliSize,
+      originalSize: file.originalSize,
     });
   }
 
-  // Si no hay versiones comprimidas, no abrir (aunque el botón debería estar deshabilitado)
-  if (versions.length < 2) return;
+  return versions;
+}
 
+// ── Selectores de modo de comparación ──
+function renderSelectors(versions) {
   const selectorsContainer = document.getElementById("compare-selectors");
   selectorsContainer.innerHTML = "";
 
-  let leftVer = versions[0];
-  let rightVer = versions[1];
-
   if (versions.length > 2) {
-    // Si tenemos 3 versiones, creamos un selector
-    const select = document.createElement("select");
-    select.className = "compare-mode-select";
-
+    // Con 3 versiones se ofrece un menú desplegable con los tres pares posibles
     const options = [
       {
         value: "orig-moz",
@@ -257,6 +312,9 @@ function openCompareModal(fileId) {
       },
     ];
 
+    const select = document.createElement("select");
+    select.className = "compare-mode-select";
+
     options.forEach((opt) => {
       const option = document.createElement("option");
       option.value = opt.value;
@@ -266,56 +324,70 @@ function openCompareModal(fileId) {
 
     select.addEventListener("change", (e) => {
       const selected = options.find((o) => o.value === e.target.value);
-      setImages(selected.left, selected.right);
+      if (selected) setImages(selected.left, selected.right);
     });
 
     selectorsContainer.appendChild(select);
-    leftVer = options[0].left;
-    rightVer = options[0].right;
+    setImages(options[0].left, options[0].right);
   } else {
-    // Si solo hay original y otra (ej. solo MozJPEG o solo Jpegli), mostrar label normal
+    // Con solo 2 versiones se muestra una etiqueta estática
     const label = document.createElement("span");
     label.className = "compare-mode-label";
     label.textContent = `${versions[0].name} vs ${versions[1].name}`;
     selectorsContainer.appendChild(label);
-
-    leftVer = versions[0];
-    rightVer = versions[1];
+    setImages(versions[0], versions[1]);
   }
+}
 
-  setImages(leftVer, rightVer);
-  compareModal.classList.remove("hidden");
-  document.body.style.overflow = "hidden"; // Deshabilitar scroll en el fondo
+// ── Reseteo del estado visual del modal ──
+function resetSliderState() {
+  const layerRight = document.getElementById("compare-layer-right");
+  const handle = document.getElementById("compare-handle");
+  const zoomLayerLeft = document.getElementById("zoom-layer-left");
+  const zoomLayerRight = document.getElementById("zoom-layer-right");
 
-  // Reiniciar estado del slider y transform
-  document.getElementById("compare-layer-right").style.clipPath =
-    "polygon(50% 0, 100% 0, 100% 100%, 50% 100%)";
-  document.getElementById("compare-handle").style.left = "50%";
+  if (layerRight)
+    layerRight.style.clipPath = "polygon(50% 0, 100% 0, 100% 100%, 50% 100%)";
+  if (handle) handle.style.left = "50%";
 
-  // Reiniciar variables estado y transform
   compareScale = 1;
   compareTx = 0;
   compareTy = 0;
 
-  const zoomLayerLeft = document.getElementById("zoom-layer-left");
-  const zoomLayerRight = document.getElementById("zoom-layer-right");
-  if (zoomLayerLeft && zoomLayerRight) {
-    zoomLayerLeft.style.transform = "translate(0px, 0px) scale(1)";
-    zoomLayerRight.style.transform = "translate(0px, 0px) scale(1)";
-  }
+  const identityTransform = "translate(0px, 0px) scale(1)";
+  if (zoomLayerLeft) zoomLayerLeft.style.transform = identityTransform;
+  if (zoomLayerRight) zoomLayerRight.style.transform = identityTransform;
 }
 
+// ── Actualización de imágenes y etiquetas ──
 function setImages(leftVer, rightVer) {
   const imgLeft = document.getElementById("compare-img-left");
   const imgRight = document.getElementById("compare-img-right");
   const labelLeft = document.getElementById("compare-label-left");
   const labelRight = document.getElementById("compare-label-right");
 
+  if (!imgLeft || !imgRight || !labelLeft || !labelRight) return;
+
   imgLeft.src = leftVer.url;
   imgRight.src = rightVer.url;
-  labelLeft.textContent = leftVer.name;
-  labelRight.textContent = rightVer.name;
+
+  labelLeft.innerHTML = buildLabel(leftVer);
+  labelRight.innerHTML = buildLabel(rightVer);
 }
 
-// Hacerlo disponible para eventos inline o llamadas desde main.js
+// Genera el HTML de una etiqueta con nombre y tamaño (más porcentaje si es versión comprimida)
+function buildLabel(ver) {
+  const toKB = (b) => (b / 1024).toFixed(2) + " KB";
+
+  if (ver.id === "orig") {
+    return `<div class="compare-label-title">${ver.name}</div>
+            <div class="compare-label-size">${toKB(ver.size)}</div>`;
+  }
+
+  const pct = ((1 - ver.size / ver.originalSize) * 100).toFixed(1);
+  return `<div class="compare-label-title">${ver.name}</div>
+          <div class="compare-label-size">${toKB(ver.size)} (-${pct}%)</div>`;
+}
+
+// ── Exposición pública ──
 window.openCompareModal = openCompareModal;

@@ -244,10 +244,21 @@
   color: white;
   padding: 8px 16px;
   border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
   font-family: "Inter", sans-serif;
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  text-align: center;
+}
+
+.compare-label-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.compare-label-size {
+  font-size: 13px;
+  font-weight: 400;
+  color: #d1d5db; /* gray-300 like */
 }
