@@ -2,7 +2,6 @@
 self.Module = {
   onRuntimeInitialized: function () {
     self.wasmReady = true;
-    console.log("Jpegli WASM listo");
     self.postMessage({ type: "ready" });
   },
 };

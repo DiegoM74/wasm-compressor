@@ -2,7 +2,6 @@
 var Module = {
   onRuntimeInitialized: function () {
     wasmReady = true;
-    console.log("MozJPEG WASM listo");
     self.postMessage({ type: "ready" });
   },
 };

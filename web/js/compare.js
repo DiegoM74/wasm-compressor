@@ -142,7 +142,7 @@ function initCompareModal() {
   };
 
   const handleZoom = (e) => {
-    e.preventDefault(); // prevenir scroll real de la página por si a caso
+    e.preventDefault(); // prevenir scroll real de la página por si acaso
 
     const rect = container.getBoundingClientRect();
     const cursorX = e.clientX - rect.left;
