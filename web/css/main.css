@@ -715,6 +715,17 @@ button:disabled {
   display: none;
 }
 
+/* Clases para modal AVIF */
+.avif-tiling-disabled {
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.avif-option-disabled {
+  pointer-events: none;
+  opacity: 0.4;
+}
+
 /* Animaciones Globales */
 @keyframes fadeIn {
   from {

@@ -5,6 +5,7 @@ Thumbs.db
 # MozJPEG source (NO incluir en el repo)
 src/mozjpeg/
 src/jpegli/
+src/libavif/
 
 # Build intermedios
 build/

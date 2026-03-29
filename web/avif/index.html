@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compresor AVIF WASM</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/main.css?v=1.9.1" />
+    <link rel="stylesheet" href="../css/compare.css?v=1.0.1" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="icon" type="image/x-icon" href="../img/favicon.ico" />
+  </head>
+  <body>
+    <h1>Compresor AVIF WASM</h1>
+    <p class="subtitle">
+      Conversión de imágenes PNG y JPEG a AVIF y compresión de imágenes en el
+      navegador (serverless)
+    </p>
+
+    <div class="lib-status-container">
+      <div id="status-libavif" class="lib-status-pill">
+        <svg class="status-icon">
+          <use href="../img/main.svg#refreshIcon"></use>
+        </svg>
+        <span>libavif</span>
+      </div>
+    </div>
+
+    <div id="drop-zone">
+      <div class="drop-text">Arrastra tus imágenes PNG o JPEG aquí</div>
+      <div class="drop-hint">
+        o haz clic para seleccionar (puedes elegir varias)<br />
+        (no se recomienda subir imágenes ya comprimidas con otras librerias)
+      </div>
+      <input
+        type="file"
+        id="file-input"
+        accept="image/jpeg, image/png"
+        style="display: none"
+        multiple
+      />
+    </div>
+
+    <div class="controls-group">
+      <div class="controls-main">
+        <div class="controls">
+          <button id="compress-btn" disabled>Comprimir</button>
+          <button id="download-btn" disabled>Descargar</button>
+          <button
+            id="config-libavif-btn"
+            class="config-btn"
+            title="Configurar libavif"
+          >
+            <svg class="config-icon">
+              <use href="../img/main.svg#configIcon"></use>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="status">Esperando imágenes...</div>
+
+    <div id="stats"></div>
+
+    <div id="list-actions" class="list-actions">
+      <button id="clear-all-btn" class="delete-btn">
+        Eliminar todas las imágenes
+      </button>
+    </div>
+
+    <div id="image-list"></div>
+
+    <script src="js/main.js?v=1.0"></script>
+    <script src="js/modal.js?v=1.0"></script>
+    <script src="js/compare.js?v=1.0"></script>
+  </body>
+</html>
