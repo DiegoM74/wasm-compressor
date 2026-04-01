@@ -29,7 +29,8 @@ CompressedResult* compress_image_jpegli(
     int smoothing_factor,      // 0–100
     int dct_method,            // 0=ISLOW, 1=IFAST, 2=FLOAT
     int baseline,              // 1 = forzar coeficientes baseline (≤255)
-    int adaptive_quantization  // 1 = cuantización adaptativa (exclusivo Jpegli)
+    int adaptive_quantization, // 1 = cuantización adaptativa (exclusivo Jpegli)
+    int write_jfif             // 1 = incluir cabecera JFIF
 ) {
     g_result.data = NULL;
     g_result.size = 0;
@@ -117,6 +118,7 @@ CompressedResult* compress_image_jpegli(
     // ── Parámetros heredados de libjpeg ────────────────────────────────────
     cinfo_out.optimize_coding  = optimize_coding ? TRUE : FALSE;
     cinfo_out.smoothing_factor = smoothing_factor;
+    cinfo_out.write_JFIF_header = write_jfif ? TRUE : FALSE;
 
     J_DCT_METHOD method;
     if      (dct_method == 1) method = JDCT_IFAST;

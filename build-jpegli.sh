@@ -143,7 +143,7 @@ emcc src/jpegli-wrapper.cpp \
     -s EXPORTED_FUNCTIONS='["_compress_image_jpegli","_free_result_data_jpegli","_malloc","_free"]' \
     -s FILESYSTEM=0 \
     -s ENVIRONMENT='web' \
-    --closure 1 \
+    --closure 0 \
     -Os \
     -DNDEBUG
 

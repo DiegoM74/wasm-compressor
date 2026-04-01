@@ -427,6 +427,12 @@ function buildJpegliModal() {
       label: "Forzar coeficientes baseline",
       help: "Limita los coeficientes de cuantización a 8 bits (≤255) según la especificación baseline. Necesario para máxima compatibilidad con software muy antiguo. Puede reducir ligeramente la calidad a calidades bajas.",
     }),
+    checkboxGroup({
+      id: "jpegli-write-jfif",
+      label: "Incluir cabecera JFIF",
+      checked: true,
+      help: "La cabecera JFIF ocupa 18 bytes. Jpegli a veces la omite por defecto. Activarlo asegura compatibilidad total con software antiguo.",
+    }),
   );
 
   // quality-row empieza oculto porque use_distance es true por defecto
@@ -520,6 +526,7 @@ const jpegliDctMethod = g("jpegli-dct-method");
 const jpegliUseStdTables = g("jpegli-use-std-tables");
 const jpegliBaseline = g("jpegli-baseline");
 const jpegliAdaptiveQuant = g("jpegli-adaptive-quant");
+const jpegliWriteJfif = g("jpegli-write-jfif");
 const jpegliApply = g("jpegli-apply");
 const jpegliCancel = g("jpegli-cancel");
 
@@ -680,6 +687,7 @@ g("config-jpegli-btn").addEventListener("click", () => {
   jpegliSmoothingVal.textContent = jpegliConfig.smoothing_factor;
   jpegliDctMethod.value = jpegliConfig.dct_method;
   jpegliBaseline.checked = jpegliConfig.baseline;
+  jpegliWriteJfif.checked = jpegliConfig.write_jfif ?? true;
   updateJpegliQualityMode();
   modalJpegli.classList.add("show");
 });
@@ -699,6 +707,7 @@ jpegliApply.addEventListener("click", () => {
   jpegliConfig.smoothing_factor = parseInt(jpegliSmoothingFactor.value, 10);
   jpegliConfig.dct_method = parseInt(jpegliDctMethod.value, 10);
   jpegliConfig.baseline = jpegliBaseline.checked;
+  jpegliConfig.write_jfif = jpegliWriteJfif.checked;
   modalJpegli.classList.remove("show");
 });
 jpegliCancel.addEventListener("click", () =>

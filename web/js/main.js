@@ -53,6 +53,7 @@ let jpegliConfig = {
   smoothing_factor: 0,
   dct_method: 0,
   baseline: false,
+  write_jfif: true,
 };
 
 // ── Estado global ──

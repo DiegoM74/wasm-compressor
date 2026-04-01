@@ -32,7 +32,7 @@ self.onmessage = function (e) {
     const inputPtr = self.Module._malloc(imageBuffer.byteLength);
     if (!inputPtr) throw new Error("malloc falló (sin memoria)");
 
-    new Uint8Array(self.Module.wasmMemory.buffer).set(
+    new Uint8Array(self.Module.HEAPU8.buffer).set(
       new Uint8Array(imageBuffer),
       inputPtr,
     );
@@ -58,6 +58,7 @@ self.onmessage = function (e) {
         "number", // dct_method
         "number", // baseline
         "number", // adaptive_quantization
+        "number", // write_jfif
       ],
       [
         inputPtr,
@@ -75,11 +76,12 @@ self.onmessage = function (e) {
         config.dct_method,
         config.baseline ? 1 : 0,
         config.adaptive_quantization ? 1 : 0,
+        config.write_jfif ? 1 : 0,
       ],
     );
 
     // Releer el heap DESPUÉS de ccall: la memoria pudo haber crecido durante la compresión
-    const heap = new Uint8Array(self.Module.wasmMemory.buffer);
+    const heap = new Uint8Array(self.Module.HEAPU8.buffer);
 
     if (!resultStructPtr) {
       self.Module._free(inputPtr);
