@@ -1,5 +1,5 @@
-// self.Module es obligatorio, Emscripten busca Module en el objeto global del worker
-self.Module = {
+// var Module es obligatorio, Emscripten busca Module en el objeto global del worker
+var Module = {
   onRuntimeInitialized: function () {
     self.wasmReady = true;
     self.postMessage({ type: "ready" });
@@ -29,17 +29,24 @@ self.onmessage = function (e) {
   }
 
   try {
-    const inputPtr = self.Module._malloc(imageBuffer.byteLength);
+    const inputPtr = Module._malloc(imageBuffer.byteLength);
     if (!inputPtr) throw new Error("malloc falló (sin memoria)");
 
-    new Uint8Array(self.Module.HEAPU8.buffer).set(
+    // Buscar el buffer de memoria por orden de disponibilidad
+    const memoryBuffer = (Module.HEAPU8 && Module.HEAPU8.buffer) || 
+                         (Module.wasmMemory && Module.wasmMemory.buffer) || 
+                         Module.buffer;
+    
+    if (!memoryBuffer) throw new Error("No se pudo acceder a la memoria WASM");
+
+    new Uint8Array(memoryBuffer).set(
       new Uint8Array(imageBuffer),
       inputPtr,
     );
 
     // ccall convierte correctamente el argumento float (distance).
     // El orden de parámetros debe coincidir exactamente con la firma C++.
-    const resultStructPtr = self.Module.ccall(
+    const resultStructPtr = Module.ccall(
       "compress_image_jpegli",
       "number",
       [
@@ -81,10 +88,13 @@ self.onmessage = function (e) {
     );
 
     // Releer el heap DESPUÉS de ccall: la memoria pudo haber crecido durante la compresión
-    const heap = new Uint8Array(self.Module.HEAPU8.buffer);
+    const currentMemoryBuffer = (Module.HEAPU8 && Module.HEAPU8.buffer) || 
+                               (Module.wasmMemory && Module.wasmMemory.buffer) || 
+                               Module.buffer;
+    const heap = new Uint8Array(currentMemoryBuffer);
 
     if (!resultStructPtr) {
-      self.Module._free(inputPtr);
+      Module._free(inputPtr);
       throw new Error("compress_image_jpegli devolvió null");
     }
 
@@ -103,7 +113,7 @@ self.onmessage = function (e) {
       (heap[resultStructPtr + 7] << 24);
 
     if (!dataPtr || size <= 0) {
-      self.Module._free(inputPtr);
+      Module._free(inputPtr);
       throw new Error(
         `compress_image_jpegli devolvió datos inválidos (ptr=${dataPtr}, size=${size})`,
       );
@@ -112,7 +122,7 @@ self.onmessage = function (e) {
     // slice() crea una copia propia del buffer, necesaria para poder transferirla
     const outputBuffer = heap.slice(dataPtr, dataPtr + size);
 
-    self.Module._free(inputPtr);
+    Module._free(inputPtr);
 
     self.postMessage(
       {
