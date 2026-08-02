@@ -610,6 +610,7 @@ function applyMozjpegConfig() {
   mozjpegConfig.trellis_q_opt = g("moz-trellis-q-opt").checked;
   mozjpegConfig.overshoot_deringing = g("moz-overshoot-deringing").checked;
   mozjpegConfig.optimize_scans = g("moz-optimize-scans").checked;
+  mozjpegConfig.tune_ssim = g("moz-tune-ssim").checked;
   mozjpegConfig.base_quant_tbl = parseInt(g("moz-base-quant-tbl").value);
   mozjpegConfig.trellis_freq_split = parseInt(
     g("moz-trellis-freq-split").value,
@@ -637,6 +638,7 @@ function applyTuneSsimPreset(enabled) {
   mozjpegConfig.base_quant_tbl = 3;
   mozjpegConfig.lambda_log_scale1 = 14.75;
   mozjpegConfig.lambda_log_scale2 = 16.5;
+  mozjpegConfig.trellis_delta_dc_weight = 1.0;
 }
 
 // ── Lógica de configuración Jpegli ──

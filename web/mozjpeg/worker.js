@@ -126,6 +126,7 @@ self.onmessage = function (e) {
 
     if (!dataPtr || size <= 0) {
       Module._free(inputPtr);
+      if (dataPtr) Module._free_result_data(dataPtr);
       throw new Error(
         `compress_image devolvió datos inválidos (ptr=${dataPtr}, size=${size})`,
       );
@@ -135,6 +136,7 @@ self.onmessage = function (e) {
     const outputBuffer = heap.slice(dataPtr, dataPtr + size);
 
     Module._free(inputPtr);
+    Module._free_result_data(dataPtr);
 
     self.postMessage(
       {

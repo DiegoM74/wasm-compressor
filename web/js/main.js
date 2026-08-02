@@ -30,6 +30,7 @@ let mozjpegConfig = {
   trellis_q_opt: false,
   overshoot_deringing: true,
   optimize_scans: true,
+  tune_ssim: true,
   base_quant_tbl: 0,
   trellis_freq_split: 8,
   trellis_num_loops: 1,
@@ -491,20 +492,39 @@ async function doCompression(mode) {
     );
 
     try {
-      if ((mode === "mozjpeg" || mode === "general") && isMozReady) {
-        const result = await compressImageMoz(f.originalBuffer.slice(0));
-        f.mozjpegBuffer = result.buffer;
-        f.mozjpegSize = result.compressedSize;
+      const mozPromise =
+        (mode === "mozjpeg" || mode === "general") && isMozReady
+          ? compressImageMoz(f.originalBuffer.slice(0))
+          : null;
+
+      const jpegliPromise =
+        (mode === "jpegli" || mode === "general") && isJpegliReady
+          ? compressImageJpegli(f.originalBuffer.slice(0))
+          : null;
+
+      const [mozRes, jpegliRes] = await Promise.allSettled([
+        mozPromise,
+        jpegliPromise,
+      ]);
+
+      if (mozRes.status === "fulfilled" && mozRes.value) {
+        f.mozjpegBuffer = mozRes.value.buffer;
+        f.mozjpegSize = mozRes.value.compressedSize;
+      } else if (mozRes.status === "rejected") {
+        console.warn(
+          `MozJPEG falló para "${f.originalFile.name}":`,
+          mozRes.reason,
+        );
       }
 
-      if ((mode === "jpegli" || mode === "general") && isJpegliReady) {
-        try {
-          const result = await compressImageJpegli(f.originalBuffer.slice(0));
-          f.jpegliBuffer = result.buffer;
-          f.jpegliSize = result.compressedSize;
-        } catch (e) {
-          console.warn(`Jpegli falló para "${f.originalFile.name}":`, e);
-        }
+      if (jpegliRes.status === "fulfilled" && jpegliRes.value) {
+        f.jpegliBuffer = jpegliRes.value.buffer;
+        f.jpegliSize = jpegliRes.value.compressedSize;
+      } else if (jpegliRes.status === "rejected") {
+        console.warn(
+          `Jpegli falló para "${f.originalFile.name}":`,
+          jpegliRes.reason,
+        );
       }
 
       // Determinar el mejor resultado disponible entre los obtenidos
