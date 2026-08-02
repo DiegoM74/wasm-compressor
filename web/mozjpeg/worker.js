@@ -26,6 +26,11 @@ function readCompressedResult(heap, ptr) {
   return { dataPtr, size };
 }
 
+// ── Arquitectura del Worker MozJPEG ──
+// Recibe parámetros de compresión planos en e.data junto al ArrayBuffer de la imagen.
+// Reserva memoria en el heap WASM (_malloc), ejecuta _compress_image y lee el resultado
+// del struct global en memoria WASM antes de retornar una copia del buffer mediante
+// postMessage transferible ([outputBuffer.buffer]).
 self.onmessage = function (e) {
   if (!wasmReady) {
     self.postMessage({ type: "error", message: "WASM no inicializado" });

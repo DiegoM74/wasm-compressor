@@ -167,6 +167,9 @@ CompressedResult* compress_image_jpegli(
     return &g_result;
 }
 
+// Libera el búfer de salida asignado internamente por jpegli_mem_dest (vía malloc).
+// Debe ser invocada desde el Worker de JS tras copiar el resultado en el heap WASM
+// para prevenir fugas de memoria (memory leaks).
 void free_result_data_jpegli(unsigned char* ptr) {
     if (ptr) free(ptr);
 }

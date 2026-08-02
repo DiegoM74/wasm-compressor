@@ -145,7 +145,7 @@ Flujo interno:
 
 ### Funciones expuestas a JS
 
-- MozJPEG: prefijo `_compress_image`, `_get_result_data`, `_get_result_size`, `_free_result_data`. Sin sufijo de motor.
+- MozJPEG: expone `_compress_image` y `_free_result_data` (además de `_malloc` y `_free`). Se eliminaron las funciones muertas de lectura del resultado. Sin sufijo de motor.
 - Jpegli: sufijo `_jpegli` en todo: `_compress_image_jpegli`, `_free_result_data_jpegli`.
 - Razón: evitar colisiones de símbolos si se linkean ambos en el mismo módulo futuro.
 
@@ -156,17 +156,18 @@ Flujo interno:
 
 ### Lectura de resultados del heap WASM
 
-Ambos workers leen el `CompressedResult` struct manualmente byte a byte (little-endian, wasm32):
+Ambos workers leen el `CompressedResult` struct mediante la función auxiliar estandarizada `readCompressedResult(heap, ptr)` (little-endian, wasm32):
 
 - Bytes 0-3: puntero a data.
 - Bytes 4-7: tamaño.
-- Luego hacen `heap.slice(dataPtr, dataPtr + size)` para copiar el output.
+- Luego hacen `heap.slice(dataPtr, dataPtr + size)` para copiar el output antes de enviarlo y liberan la memoria WASM.
 
 ### Configuración desde la UI
 
 - Los configs viven como objetos globales en `main.js`: `mozjpegConfig`, `jpegliConfig`.
 - `modal.js` construye las modales programáticamente (no hay HTML estático) con helpers `sliderGroup()`, `checkboxGroup()`, `selectGroup()`, `accordion()`.
 - Al presionar "Aplicar", el modal lee los inputs del DOM y actualiza el config global. No hay binding reactivo.
+- La función `renderList()` de `main.js` utiliza reconciliación del DOM mediante `createFileElement()` por `id="item-${file.id}"` para evitar parpadeos visuales y no destruir nodos ya renderizados.
 
 ### Estilo de código
 
@@ -175,6 +176,7 @@ Ambos workers leen el `CompressedResult` struct manualmente byte a byte (little-
 - CSS variables definidas en `main.css` (ej: `--accent-secondary`, `--text-secondary`).
 - Idioma: comentarios en español, nombres de variables/funciones en inglés.
 - SVG icons inline via `<use href="img/main.svg#iconName">`.
+- Accesibilidad: Las etiquetas de interfaz y contenedores implementan roles WAI-ARIA, navegación por teclado y respeto por `prefers-reduced-motion`.
 
 ---
 

@@ -190,6 +190,19 @@ button:disabled {
   transform: scale(1.02);
 }
 
+#drop-zone.dragover-error {
+  background: rgba(244, 67, 54, 0.15);
+  border-color: #f44336;
+  box-shadow: 0 0 30px rgba(244, 67, 54, 0.25);
+  transform: scale(1.02);
+}
+
+#drop-zone.drop-error-flash {
+  background: rgba(244, 67, 54, 0.2);
+  border-color: #f44336;
+  box-shadow: 0 0 30px rgba(244, 67, 54, 0.3);
+}
+
 .drop-text {
   margin-bottom: 8px;
   font-size: 1.25rem;
@@ -210,7 +223,7 @@ button:disabled {
   gap: 20px;
   width: 100%;
   max-width: 800px;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 
 .controls-main {
@@ -759,4 +772,16 @@ button:disabled {
 
 body > * {
   animation: fadeIn 0.6s ease-out forwards;
+}
+
+/* Preferencias de accesibilidad para movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

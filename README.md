@@ -13,11 +13,12 @@ La mayoría de herramientas de compresión de imágenes requieren instalar softw
 ## Características
 
 - **Privacidad total**: Las imágenes nunca salen del dispositivo. Todo el procesamiento ocurre en el navegador con WebAssembly.
-- **Dos motores en paralelo**: Comprime con MozJPEG y Jpegli simultáneamente y selecciona automáticamente el mejor resultado.
-- **Configuración avanzada**: Modales dedicados para ajustar todos los parámetros y flags posibles de cada motor directamente desde la UI.
+- **Dos motores en paralelo concurrente**: Comprime con MozJPEG y Jpegli de forma verdaderamente paralela en sus propios Web Workers independientes, reduciendo significativamente los tiempos de procesamiento y seleccionando automáticamente el mejor resultado.
+- **Configuración avanzada**: Modales dedicados para ajustar todos los parámetros y flags posibles de cada motor directamente desde la UI (incluyendo optimización de SSIM y cuantización adaptativa).
 - **Comparación visual A/B**: Visor interactivo con slider, zoom y paneo para comparar Original vs MozJPEG vs Jpegli.
-- **Múltiples imágenes**: Carga y procesa varios archivos JPEG a la vez. Descarga individual o en ZIP.
-- **No bloquea la interfaz**: Los motores corren en Web Workers en segundo plano.
+- **Múltiples imágenes y prevención de duplicados**: Carga y procesa varios archivos JPEG a la vez con reconciliación del DOM sin parpadeo y detección automática de imágenes duplicadas. Descarga individual o en ZIP.
+- **Accesibilidad integral (WAI-ARIA)**: Soporte completo para lectores de pantalla, navegación por teclado, feedback visual instantáneo de errores y respeto por preferencias de movimiento reducido (`prefers-reduced-motion`).
+- **No bloquea la interfaz**: Los motores corren en Web Workers en segundo plano sin congelar la UI.
 
 ## Uso
 

@@ -26,6 +26,11 @@ function readCompressedResult(heap, ptr) {
   return { dataPtr, size };
 }
 
+// ── Arquitectura del Worker Jpegli ──
+// Recibe un objeto config en e.data junto al ArrayBuffer de la imagen.
+// Usa ccall para poder convertir correctamente el parámetro flotante (distance),
+// reserva memoria WASM (_malloc) y retorna una copia del resultado mediante
+// postMessage transferible ([outputBuffer.buffer]).
 self.onmessage = function (e) {
   if (!wasmReady) {
     self.postMessage({ type: "error", message: "WASM no inicializado" });

@@ -15,6 +15,17 @@ const statusPillJpegli = document.getElementById("status-jpegli");
 const listActions = document.getElementById("list-actions");
 const clearAllBtn = document.getElementById("clear-all-btn");
 
+// ── Constantes y tipos de mensajes ──
+const BYTES_PER_KB = 1024;
+const ENGINE_MOZJPEG = "MozJPEG";
+const ENGINE_JPEGLI = "Jpegli";
+const MODE_MOZJPEG = "mozjpeg";
+const MODE_JPEGLI = "jpegli";
+const MODE_GENERAL = "general";
+const MSG_READY = "ready";
+const MSG_DONE = "done";
+const MSG_ERROR = "error";
+
 // ── Configuración por defecto ──
 let mozjpegConfig = {
   quality: 85,
@@ -237,6 +248,12 @@ function initWorkers() {
   updateUI();
 }
 
+// ── Arquitectura de comunicación con Web Workers ──
+// Cada motor (MozJPEG y Jpegli) corre en su propio Web Worker para no bloquear
+// el hilo principal (UI). Se comunican mediante postMessage utilizando objetos
+// transferibles ([buffer]), lo cual transfiere la propiedad de la memoria en vez
+// de copiarla. Por esa razón, siempre se debe enviar una copia (.slice(0)) del
+// ArrayBuffer original cuando se invoca la compresión.
 // ── Compresión con MozJPEG ──
 function compressImageMoz(buffer) {
   return new Promise((resolve, reject) => {
@@ -482,7 +499,7 @@ function updateFileDOM(file) {
   const statsEl = item.querySelector(".image-stats");
   if (!statsEl) return;
 
-  const toKB = (b) => (b / 1024).toFixed(2);
+  const toKB = (b) => (b / BYTES_PER_KB).toFixed(2);
   const toPct = (b) => ((1 - b / file.originalSize) * 100).toFixed(1);
 
   let html = `<div class="stats-primary"><span>Original: ${toKB(file.originalSize)} KB</span>`;
@@ -492,10 +509,10 @@ function updateFileDOM(file) {
   html += `</div>`;
 
   if (file.mozjpegSize) {
-    html += `<div style="font-size:0.85em;color:var(--text-secondary)">MozJPEG: ${toKB(file.mozjpegSize)} KB (-${toPct(file.mozjpegSize)}%)</div>`;
+    html += `<div style="font-size:0.85em;color:var(--text-secondary)">${ENGINE_MOZJPEG}: ${toKB(file.mozjpegSize)} KB (-${toPct(file.mozjpegSize)}%)</div>`;
   }
   if (file.jpegliSize) {
-    html += `<div style="font-size:0.85em;color:var(--text-secondary)">Jpegli: ${toKB(file.jpegliSize)} KB (-${toPct(file.jpegliSize)}%)</div>`;
+    html += `<div style="font-size:0.85em;color:var(--text-secondary)">${ENGINE_JPEGLI}: ${toKB(file.jpegliSize)} KB (-${toPct(file.jpegliSize)}%)</div>`;
   }
 
   statsEl.innerHTML = html;
@@ -659,19 +676,45 @@ async function doDownload(mode) {
 // ── Eventos ──
 dropZone.addEventListener("dragover", (e) => {
   e.preventDefault();
-  dropZone.classList.add("dragover");
+  const hasInvalid = Array.from(e.dataTransfer.items || []).some(
+    (item) => item.kind === "file" && item.type && item.type !== "image/jpeg",
+  );
+  if (hasInvalid) {
+    dropZone.classList.add("dragover-error");
+    dropZone.classList.remove("dragover");
+  } else {
+    dropZone.classList.add("dragover");
+    dropZone.classList.remove("dragover-error");
+  }
 });
-dropZone.addEventListener("dragleave", () =>
-  dropZone.classList.remove("dragover"),
-);
+dropZone.addEventListener("dragleave", () => {
+  dropZone.classList.remove("dragover", "dragover-error");
+});
 dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
-  dropZone.classList.remove("dragover");
-  if (e.dataTransfer.files.length)
-    handleFiles(Array.from(e.dataTransfer.files));
+  dropZone.classList.remove("dragover", "dragover-error");
+  if (e.dataTransfer.files.length) {
+    const files = Array.from(e.dataTransfer.files);
+    const hasInvalid = files.some((f) => f.type !== "image/jpeg");
+    if (hasInvalid) {
+      dropZone.classList.add("drop-error-flash");
+      setTimeout(() => dropZone.classList.remove("drop-error-flash"), 1200);
+      updateStatus(
+        "Advertencia: Se omitieron archivos no válidos (solo se soportan imágenes JPEG)",
+        "warning",
+      );
+    }
+    handleFiles(files);
+  }
 });
 dropZone.addEventListener("click", () => {
   if (!isCompressing) fileInput.click();
+});
+dropZone.addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && !isCompressing) {
+    e.preventDefault();
+    fileInput.click();
+  }
 });
 
 fileInput.addEventListener("change", (e) => {

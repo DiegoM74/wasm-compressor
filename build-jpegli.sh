@@ -108,6 +108,13 @@ echo "========================================"
 echo "Enlazando con: $LINK_LIBS"
 
 cd "$PROJECT_DIR"
+
+# Configuración de memoria WASM (en bytes):
+# INITIAL_MEM = 128 MB (128 * 1024 * 1024 = 134217728 bytes)
+# MAX_MEM     = 512 MB (512 * 1024 * 1024 = 536870912 bytes)
+INITIAL_MEM=134217728
+MAX_MEM=536870912
+
 emcc src/jpegli-wrapper.cpp \
     -I src/jpegli \
     -I src/jpegli/lib \
@@ -120,8 +127,8 @@ emcc src/jpegli-wrapper.cpp \
     -o build/jpegli/encoder.js \
     -s WASM=1 \
     -s ALLOW_MEMORY_GROWTH=1 \
-    -s INITIAL_MEMORY=134217728 \
-    -s MAXIMUM_MEMORY=536870912 \
+    -s INITIAL_MEMORY=${INITIAL_MEM} \
+    -s MAXIMUM_MEMORY=${MAX_MEM} \
     -s EXPORTED_RUNTIME_METHODS='["ccall","getValue","wasmMemory"]' \
     -s EXPORTED_FUNCTIONS='["_compress_image_jpegli","_free_result_data_jpegli","_malloc","_free"]' \
     -s FILESYSTEM=0 \

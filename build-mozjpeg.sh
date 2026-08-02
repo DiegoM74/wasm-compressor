@@ -105,6 +105,13 @@ echo "========================================"
 
 cd "$PROJECT_DIR"
 mkdir -p "$BUILD_OUT/mozjpeg" "$WEB_DIR/mozjpeg"
+
+# Configuración de memoria WASM (en bytes):
+# INITIAL_MEM = 128 MB (128 * 1024 * 1024 = 134217728 bytes)
+# MAX_MEM     = 512 MB (512 * 1024 * 1024 = 536870912 bytes)
+INITIAL_MEM=134217728
+MAX_MEM=536870912
+
 emcc src/mozjpeg-wrapper.c \
     -I src/mozjpeg \
     -I src/mozjpeg/build_wasm \
@@ -112,8 +119,8 @@ emcc src/mozjpeg-wrapper.c \
     -o build/mozjpeg/encoder.js \
     -s WASM=1 \
     -s ALLOW_MEMORY_GROWTH=1 \
-    -s INITIAL_MEMORY=134217728 \
-    -s MAXIMUM_MEMORY=536870912 \
+    -s INITIAL_MEMORY=${INITIAL_MEM} \
+    -s MAXIMUM_MEMORY=${MAX_MEM} \
     -s EXPORTED_RUNTIME_METHODS='["ccall","getValue","wasmMemory"]' \
     -s EXPORTED_FUNCTIONS='["_compress_image","_free","_free_result_data","_malloc"]' \
     -s FILESYSTEM=0 \
