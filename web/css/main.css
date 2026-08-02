@@ -297,6 +297,36 @@ button:disabled {
   transform: translateY(-2px);
 }
 
+#compress-mozjpeg-btn,
+#compress-jpegli-btn {
+  color: #fff;
+  background: rgba(0, 188, 212, 0.15);
+  border: 1px solid var(--accent-primary);
+  box-shadow: 0 2px 10px rgba(0, 188, 212, 0.15);
+}
+
+#compress-mozjpeg-btn:hover:not(:disabled),
+#compress-jpegli-btn:hover:not(:disabled) {
+  background: rgba(0, 188, 212, 0.3);
+  box-shadow: 0 4px 14px rgba(0, 188, 212, 0.3);
+  transform: translateY(-2px);
+}
+
+#download-mozjpeg-btn,
+#download-jpegli-btn {
+  color: #fff;
+  background: rgba(76, 175, 80, 0.15);
+  border: 1px solid var(--accent-secondary);
+  box-shadow: 0 2px 10px rgba(76, 175, 80, 0.15);
+}
+
+#download-mozjpeg-btn:hover:not(:disabled),
+#download-jpegli-btn:hover:not(:disabled) {
+  background: rgba(76, 175, 80, 0.3);
+  box-shadow: 0 4px 14px rgba(76, 175, 80, 0.3);
+  transform: translateY(-2px);
+}
+
 /* Texto de Estado */
 #status {
   min-height: 24px;

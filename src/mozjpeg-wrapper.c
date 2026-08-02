@@ -218,6 +218,3 @@ CompressedResult* compress_image(
 void free_result_data(unsigned char* ptr) {
     if (ptr) free(ptr);
 }
-
-unsigned char* get_result_data() { return g_result.data; }
-int get_result_size()            { return g_result.size; }

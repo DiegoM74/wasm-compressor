@@ -115,7 +115,7 @@ emcc src/mozjpeg-wrapper.c \
     -s INITIAL_MEMORY=134217728 \
     -s MAXIMUM_MEMORY=536870912 \
     -s EXPORTED_RUNTIME_METHODS='["ccall","getValue","wasmMemory"]' \
-    -s EXPORTED_FUNCTIONS='["_compress_image","_free","_free_result_data","_get_result_data","_get_result_size","_malloc"]' \
+    -s EXPORTED_FUNCTIONS='["_compress_image","_free","_free_result_data","_malloc"]' \
     -s FILESYSTEM=0 \
     -s ENVIRONMENT='web' \
     --closure 1 \

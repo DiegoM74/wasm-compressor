@@ -203,6 +203,11 @@ function initWorkers() {
     if (e.data.type === "ready") {
       isMozReady = true;
       updateUI();
+    } else if (e.data.type === "error") {
+      // Errores de inicialización llegan por mensaje, no por onerror
+      console.error("MozJPEG worker error:", e.data.message);
+      mozHasError = true;
+      updateUI();
     }
   };
   workerMoz.onerror = (e) => {
@@ -308,7 +313,21 @@ function compressImageJpegli(buffer) {
 function handleFiles(newFiles) {
   if (isCompressing) return;
 
+  const seenInBatch = new Set();
   for (const file of newFiles) {
+    const fileKey = `${file.name}_${file.size}`;
+    if (
+      seenInBatch.has(fileKey) ||
+      filesData.some(
+        (f) =>
+          f.originalFile.name === file.name &&
+          f.originalFile.size === file.size,
+      )
+    ) {
+      continue;
+    }
+    seenInBatch.add(fileKey);
+
     const fileId = crypto.randomUUID();
 
     if (file.type !== "image/jpeg") {
@@ -372,71 +391,88 @@ function removeFile(id) {
   }
 }
 
-// ── Renderizado de lista ──
-function renderList() {
-  imageList.innerHTML = "";
+function createFileElement(file) {
+  const item = document.createElement("div");
+  item.id = `item-${file.id}`;
 
-  for (const file of filesData) {
-    if (file.isUnsupported) {
-      const item = document.createElement("div");
-      item.className = "unsupported-item";
-
-      const info = document.createElement("div");
-      info.className = "image-info";
-      info.textContent = file.errorMessage;
-
-      const btn = document.createElement("button");
-      btn.className = "delete-btn";
-      btn.textContent = "X";
-      btn.disabled = isCompressing;
-      btn.onclick = () => removeFile(file.id);
-
-      item.append(info, btn);
-      imageList.appendChild(item);
-      continue;
-    }
-
-    const item = document.createElement("div");
-    item.className = "image-item";
-    item.id = `item-${file.id}`;
-
-    const img = document.createElement("img");
-    img.src = file.previewUrl;
+  if (file.isUnsupported) {
+    item.className = "unsupported-item";
 
     const info = document.createElement("div");
     info.className = "image-info";
+    info.textContent = file.errorMessage;
 
-    const name = document.createElement("div");
-    name.className = "image-name";
-    name.textContent = file.originalFile.name;
+    const btn = document.createElement("button");
+    btn.className = "delete-btn";
+    btn.textContent = "X";
+    btn.disabled = isCompressing;
+    btn.onclick = () => removeFile(file.id);
 
-    const stats = document.createElement("div");
-    stats.className = "image-stats";
+    item.append(info, btn);
+    return item;
+  }
 
-    const actionsDiv = document.createElement("div");
-    actionsDiv.className = "item-actions";
+  item.className = "image-item";
 
-    const compareBtn = document.createElement("button");
-    compareBtn.className = "compare-btn";
-    compareBtn.textContent = "Comparar";
-    compareBtn.disabled =
-      isCompressing || (!file.mozjpegBuffer && !file.jpegliBuffer);
-    compareBtn.onclick = () => {
-      if (window.openCompareModal) window.openCompareModal(file.id);
-    };
+  const img = document.createElement("img");
+  img.src = file.previewUrl;
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "delete-btn";
-    deleteBtn.textContent = "Eliminar";
-    deleteBtn.disabled = isCompressing;
-    deleteBtn.onclick = () => removeFile(file.id);
+  const info = document.createElement("div");
+  info.className = "image-info";
 
-    actionsDiv.append(compareBtn, deleteBtn);
-    info.append(name, stats);
-    item.append(img, info, actionsDiv);
-    imageList.appendChild(item);
+  const name = document.createElement("div");
+  name.className = "image-name";
+  name.textContent = file.originalFile.name;
 
-    updateFileDOM(file);
+  const stats = document.createElement("div");
+  stats.className = "image-stats";
+
+  const actionsDiv = document.createElement("div");
+  actionsDiv.className = "item-actions";
+
+  const compareBtn = document.createElement("button");
+  compareBtn.className = "compare-btn";
+  compareBtn.textContent = "Comparar";
+  compareBtn.disabled =
+    isCompressing || (!file.mozjpegBuffer && !file.jpegliBuffer);
+  compareBtn.onclick = () => {
+    if (window.openCompareModal) window.openCompareModal(file.id);
+  };
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "delete-btn";
+  deleteBtn.textContent = "Eliminar";
+  deleteBtn.disabled = isCompressing;
+  deleteBtn.onclick = () => removeFile(file.id);
+
+  actionsDiv.append(compareBtn, deleteBtn);
+  info.append(name, stats);
+  item.append(img, info, actionsDiv);
+
+  return item;
+}
+
+// ── Renderizado de lista ──
+function renderList() {
+  const currentIds = new Set(filesData.map((f) => `item-${f.id}`));
+  Array.from(imageList.children).forEach((child) => {
+    if (!currentIds.has(child.id)) {
+      child.remove();
+    }
+  });
+
+  for (const file of filesData) {
+    let item = document.getElementById(`item-${file.id}`);
+    if (!item) {
+      item = createFileElement(file);
+      imageList.appendChild(item);
+    }
+    const deleteBtn = item.querySelector(".delete-btn");
+    if (deleteBtn) deleteBtn.disabled = isCompressing;
+
+    if (!file.isUnsupported) {
+      updateFileDOM(file);
+    }
   }
 }
 

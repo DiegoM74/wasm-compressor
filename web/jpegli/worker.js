@@ -1,7 +1,7 @@
 // var Module es obligatorio, Emscripten busca Module en el objeto global del worker
 var Module = {
   onRuntimeInitialized: function () {
-    self.wasmReady = true;
+    wasmReady = true;
     self.postMessage({ type: "ready" });
   },
 };
@@ -9,8 +9,25 @@ var Module = {
 // importScripts DESPUÉS de definir Module para que Emscripten lo detecte
 importScripts("./encoder.js");
 
+let wasmReady = false;
+
+// Lee struct CompressedResult { unsigned char* data; int size; } del heap WASM (wasm32 Little-Endian)
+function readCompressedResult(heap, ptr) {
+  const dataPtr =
+    heap[ptr] |
+    (heap[ptr + 1] << 8) |
+    (heap[ptr + 2] << 16) |
+    (heap[ptr + 3] << 24);
+  const size =
+    heap[ptr + 4] |
+    (heap[ptr + 5] << 8) |
+    (heap[ptr + 6] << 16) |
+    (heap[ptr + 7] << 24);
+  return { dataPtr, size };
+}
+
 self.onmessage = function (e) {
-  if (!self.wasmReady) {
+  if (!wasmReady) {
     self.postMessage({ type: "error", message: "WASM no inicializado" });
     return;
   }
@@ -32,14 +49,7 @@ self.onmessage = function (e) {
     const inputPtr = Module._malloc(imageBuffer.byteLength);
     if (!inputPtr) throw new Error("malloc falló (sin memoria)");
 
-    // Buscar el buffer de memoria por orden de disponibilidad
-    const memoryBuffer = (Module.HEAPU8 && Module.HEAPU8.buffer) || 
-                         (Module.wasmMemory && Module.wasmMemory.buffer) || 
-                         Module.buffer;
-    
-    if (!memoryBuffer) throw new Error("No se pudo acceder a la memoria WASM");
-
-    new Uint8Array(memoryBuffer).set(
+    new Uint8Array(Module.wasmMemory.buffer).set(
       new Uint8Array(imageBuffer),
       inputPtr,
     );
@@ -88,29 +98,14 @@ self.onmessage = function (e) {
     );
 
     // Releer el heap DESPUÉS de ccall: la memoria pudo haber crecido durante la compresión
-    const currentMemoryBuffer = (Module.HEAPU8 && Module.HEAPU8.buffer) || 
-                               (Module.wasmMemory && Module.wasmMemory.buffer) || 
-                               Module.buffer;
-    const heap = new Uint8Array(currentMemoryBuffer);
+    const heap = new Uint8Array(Module.wasmMemory.buffer);
 
     if (!resultStructPtr) {
       Module._free(inputPtr);
       throw new Error("compress_image_jpegli devolvió null");
     }
 
-    // Leer struct CompressedResult { unsigned char* data; int size; }
-    // En wasm32: puntero = 4 bytes, int = 4 bytes → offsets 0 y 4
-    const dataPtr =
-      heap[resultStructPtr] |
-      (heap[resultStructPtr + 1] << 8) |
-      (heap[resultStructPtr + 2] << 16) |
-      (heap[resultStructPtr + 3] << 24);
-
-    const size =
-      heap[resultStructPtr + 4] |
-      (heap[resultStructPtr + 5] << 8) |
-      (heap[resultStructPtr + 6] << 16) |
-      (heap[resultStructPtr + 7] << 24);
+    const { dataPtr, size } = readCompressedResult(heap, resultStructPtr);
 
     if (!dataPtr || size <= 0) {
       Module._free(inputPtr);

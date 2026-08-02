@@ -11,6 +11,21 @@ importScripts("./encoder.js");
 
 let wasmReady = false;
 
+// Lee struct CompressedResult { unsigned char* data; int size; } del heap WASM (wasm32 Little-Endian)
+function readCompressedResult(heap, ptr) {
+  const dataPtr =
+    heap[ptr] |
+    (heap[ptr + 1] << 8) |
+    (heap[ptr + 2] << 16) |
+    (heap[ptr + 3] << 24);
+  const size =
+    heap[ptr + 4] |
+    (heap[ptr + 5] << 8) |
+    (heap[ptr + 6] << 16) |
+    (heap[ptr + 7] << 24);
+  return { dataPtr, size };
+}
+
 self.onmessage = function (e) {
   if (!wasmReady) {
     self.postMessage({ type: "error", message: "WASM no inicializado" });
@@ -110,19 +125,7 @@ self.onmessage = function (e) {
       throw new Error("compress_image devolvió null");
     }
 
-    // Leer struct CompressedResult { unsigned char* data; int size; }
-    // En wasm32: puntero = 4 bytes, int = 4 bytes → offsets 0 y 4
-    const dataPtr =
-      heap[resultStructPtr] |
-      (heap[resultStructPtr + 1] << 8) |
-      (heap[resultStructPtr + 2] << 16) |
-      (heap[resultStructPtr + 3] << 24);
-
-    const size =
-      heap[resultStructPtr + 4] |
-      (heap[resultStructPtr + 5] << 8) |
-      (heap[resultStructPtr + 6] << 16) |
-      (heap[resultStructPtr + 7] << 24);
+    const { dataPtr, size } = readCompressedResult(heap, resultStructPtr);
 
     if (!dataPtr || size <= 0) {
       Module._free(inputPtr);
