@@ -8,8 +8,8 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=2.0" />
-    <link rel="stylesheet" href="css/compare.css?v=2.0" />
+    <link rel="stylesheet" href="css/main.css?v=2.5" />
+    <link rel="stylesheet" href="css/compare.css?v=2.5" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="icon" type="image/x-icon" href="img/favicon.ico" />
   </head>
@@ -71,32 +71,56 @@
           <span class="lib-label">MozJPEG</span>
           <button id="compress-mozjpeg-btn" disabled>Comprimir</button>
           <button id="download-mozjpeg-btn" disabled>Descargar</button>
-          <button
-            id="config-mozjpeg-btn"
-            class="config-btn"
-            title="Configurar MozJPEG"
-            aria-label="Configurar MozJPEG"
-          >
-            <svg class="config-icon">
-              <use href="img/main.svg#configIcon"></use>
-            </svg>
-          </button>
+          <div class="config-buttons-group">
+            <button
+              id="config-mozjpeg-btn"
+              class="config-btn"
+              title="Configurar MozJPEG"
+              aria-label="Configurar MozJPEG"
+            >
+              <svg class="config-icon">
+                <use href="img/main.svg#configIcon"></use>
+              </svg>
+            </button>
+            <button
+              id="guide-mozjpeg-btn"
+              class="config-btn"
+              title="Guía de opciones MozJPEG"
+              aria-label="Guía de opciones MozJPEG"
+            >
+              <svg class="config-icon">
+                <use href="img/main.svg#infoIcon"></use>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div class="controls-lib">
           <span class="lib-label">Jpegli</span>
           <button id="compress-jpegli-btn" disabled>Comprimir</button>
           <button id="download-jpegli-btn" disabled>Descargar</button>
-          <button
-            id="config-jpegli-btn"
-            class="config-btn"
-            title="Configurar Jpegli"
-            aria-label="Configurar Jpegli"
-          >
-            <svg class="config-icon">
-              <use href="img/main.svg#configIcon"></use>
-            </svg>
-          </button>
+          <div class="config-buttons-group">
+            <button
+              id="config-jpegli-btn"
+              class="config-btn"
+              title="Configurar Jpegli"
+              aria-label="Configurar Jpegli"
+            >
+              <svg class="config-icon">
+                <use href="img/main.svg#configIcon"></use>
+              </svg>
+            </button>
+            <button
+              id="guide-jpegli-btn"
+              class="config-btn"
+              title="Guía de opciones Jpegli"
+              aria-label="Guía de opciones Jpegli"
+            >
+              <svg class="config-icon">
+                <use href="img/main.svg#infoIcon"></use>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -115,8 +139,9 @@
 
     <div id="image-list" role="list" aria-label="Lista de imágenes cargadas"></div>
 
-    <script src="js/main.js?v=2.0"></script>
-    <script src="js/modal.js?v=2.0"></script>
-    <script src="js/compare.js?v=2.0"></script>
+    <script src="js/main.js?v=2.5"></script>
+    <script src="js/modal.js?v=2.5"></script>
+    <script src="js/guide.js?v=2.5"></script>
+    <script src="js/compare.js?v=2.5"></script>
   </body>
 </html>

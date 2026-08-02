@@ -256,6 +256,11 @@ button:disabled {
   gap: 16px;
 }
 
+.config-buttons-group {
+  display: flex;
+  gap: 8px;
+}
+
 .lib-label {
   min-width: 90px;
   font-weight: 600;
@@ -692,23 +697,35 @@ button:disabled {
 }
 
 .help-icon {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   margin-left: 6px;
-  font-size: 12px;
-  font-weight: bold;
-  line-height: 18px;
-  color: var(--bg-color);
-  text-align: center;
-  background: var(--text-secondary);
+  padding: 0;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
   border-radius: 50%;
-  cursor: help;
-  transition: background 0.2s;
+  cursor: pointer;
+  transition: var(--transition);
+  vertical-align: middle;
 }
 
 .help-icon:hover {
+  color: #000;
   background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  transform: scale(1.1);
+}
+
+.help-icon-svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
 }
 
 /* Acordeones */
@@ -809,6 +826,122 @@ button:disabled {
 
 body > * {
   animation: fadeIn 0.6s ease-out forwards;
+}
+
+/* Modal de Guía de Opciones (z-index superior a la modal de ajustes) */
+.modal.modal-guide {
+  z-index: 1100;
+}
+
+.modal.modal-guide .modal-content {
+  z-index: 1101;
+  max-width: 680px;
+}
+
+.guide-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.guide-section-title {
+  padding-bottom: 8px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--accent-primary);
+  border-bottom: 2px solid rgba(0, 188, 212, 0.25);
+}
+
+.guide-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: var(--transition);
+}
+
+.guide-entry:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.guide-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.guide-entry-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.guide-rec-tag {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-secondary);
+  background: rgba(76, 175, 80, 0.12);
+  border: 1px solid rgba(76, 175, 80, 0.35);
+  border-radius: 100px;
+}
+
+.guide-description {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.guide-pros-cons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+}
+
+.guide-pro,
+.guide-con {
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.pro-con-label {
+  font-weight: 700;
+}
+
+.guide-pro .pro-con-label {
+  color: var(--accent-secondary);
+}
+
+.guide-con .pro-con-label {
+  color: #ff8a80;
+}
+
+@keyframes highlightGlow {
+  0% {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 20px rgba(0, 188, 212, 0.45);
+    background: rgba(0, 188, 212, 0.12);
+  }
+  100% {
+    border-color: var(--border-color);
+    box-shadow: none;
+    background: rgba(255, 255, 255, 0.02);
+  }
+}
+
+.guide-entry.highlight-entry {
+  animation: highlightGlow 2.5s ease-out;
 }
 
 /* Preferencias de accesibilidad para movimiento reducido */

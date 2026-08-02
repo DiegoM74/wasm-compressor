@@ -14,7 +14,7 @@ La mayoría de herramientas de compresión de imágenes requieren instalar softw
 
 - **Privacidad total**: Las imágenes nunca salen del dispositivo. Todo el procesamiento ocurre en el navegador con WebAssembly.
 - **Dos motores en paralelo concurrente**: Comprime con MozJPEG y Jpegli de forma verdaderamente paralela en sus propios Web Workers independientes, reduciendo significativamente los tiempos de procesamiento y seleccionando automáticamente el mejor resultado.
-- **Configuración avanzada**: Modales dedicados para ajustar todos los parámetros y flags posibles de cada motor directamente desde la UI (incluyendo optimización de SSIM y cuantización adaptativa).
+- **Configuración avanzada y Guía interactiva**: Modales dedicadas para ajustar todos los parámetros de compresión y guías interactivas para MozJPEG y Jpegli. Consulta explicaciones detalladas, pros/contras y valores recomendados con los botones (i) junto a cada control para saltar directo a su documentación.
 - **Comparación visual A/B**: Visor interactivo con slider, zoom y paneo para comparar Original vs MozJPEG vs Jpegli.
 - **Múltiples imágenes y prevención de duplicados**: Carga y procesa varios archivos JPEG a la vez con reconciliación del DOM sin parpadeo y detección automática de imágenes duplicadas. Descarga individual o en ZIP.
 - **Accesibilidad integral (WAI-ARIA)**: Soporte completo para lectores de pantalla, navegación por teclado, feedback visual instantáneo de errores y respeto por preferencias de movimiento reducido (`prefers-reduced-motion`).
@@ -26,7 +26,7 @@ La mayoría de herramientas de compresión de imágenes requieren instalar softw
 2. Sirve la carpeta `web/` con cualquier servidor estático (ej: `python -m http.server 8000 --directory web` o la extensión Live Server de VS Code).
 3. Abre la URL en un navegador moderno.
 4. Arrastra imágenes JPEG al área de carga o haz clic para seleccionarlas.
-5. Ajusta los parámetros de compresión con los botones ⚙️ de cada motor (opcional).
+5. Ajusta los parámetros de compresión con los botones ⚙️ de cada motor (opcional) o consulta las guías de opciones pulsando los iconos `(i)`.
 6. Presiona **Comprimir** y espera los resultados.
 7. Usa el botón **Comparar** en cada imagen para ver las diferencias lado a lado.
 8. Descarga las imágenes optimizadas individualmente o todas juntas en un ZIP.

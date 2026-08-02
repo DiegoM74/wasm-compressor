@@ -2,11 +2,30 @@
 const g = (id) => document.getElementById(id);
 
 function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
+  const isSvg =
+    tag === "svg" ||
+    tag === "use" ||
+    tag === "path" ||
+    tag === "circle" ||
+    tag === "symbol" ||
+    tag === "g" ||
+    tag === "defs";
+  const node = isSvg
+    ? document.createElementNS("http://www.w3.org/2000/svg", tag)
+    : document.createElement(tag);
+
   for (const [k, v] of Object.entries(attrs)) {
-    if (k === "class") node.className = v;
-    else if (k === "text") node.textContent = v;
-    else node.setAttribute(k, v);
+    if (k === "class") {
+      if (isSvg) node.setAttribute("class", v);
+      else node.className = v;
+    } else if (k === "text") {
+      node.textContent = v;
+    } else if (k === "href" && isSvg) {
+      node.setAttribute("href", v);
+      node.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", v);
+    } else {
+      node.setAttribute(k, v);
+    }
   }
 
   for (const child of children) {
@@ -15,8 +34,32 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-function helpIcon(title) {
-  return el("span", { class: "help-icon", title }, "?");
+function helpIcon(help, id) {
+  const svgUse = el("use", { href: "img/main.svg#infoIcon" });
+  const svg = el("svg", { class: "help-icon-svg" }, svgUse);
+
+  const btn = el(
+    "button",
+    {
+      type: "button",
+      class: "help-icon",
+      title: `Clic para ver en la guía: ${help || "Más información"}`,
+      "aria-label": `Ver en guía de opciones: ${help || ""}`,
+    },
+    svg,
+  );
+
+  if (id) {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const library = id.startsWith("moz-") ? "mozjpeg" : "jpegli";
+      if (typeof openGuideModal === "function") {
+        openGuideModal(library, id);
+      }
+    });
+  }
+  return btn;
 }
 
 // Slider con etiqueta y valor en tiempo real
@@ -39,7 +82,7 @@ function sliderGroup({
   lbl.append(
     label,
     " ",
-    helpIcon(help),
+    helpIcon(help, id),
     " ",
     el("span", { id: valueId }, displayVal),
   );
@@ -68,7 +111,7 @@ function checkboxGroup({ id, label, help, checked = false, extraClass = "" }) {
   const cb = el("input", { type: "checkbox", id });
   cb.checked = checked; // propiedad, no atributo, para evitar problemas con el estado actual vs default
   const lbl = el("label");
-  lbl.append(cb, " ", label, " ", helpIcon(help));
+  lbl.append(cb, " ", label, " ", helpIcon(help, id));
   return el(
     "div",
     { class: `form-group${extraClass ? " " + extraClass : ""}` },
@@ -79,7 +122,7 @@ function checkboxGroup({ id, label, help, checked = false, extraClass = "" }) {
 // Select con opciones
 function selectGroup({ id, label, help, options }) {
   const lbl = el("label");
-  lbl.append(label, " ", helpIcon(help));
+  lbl.append(label, " ", helpIcon(help, id));
 
   const select = el("select", { id });
   for (const { value, text, selected } of options) {
@@ -106,9 +149,13 @@ function accordion(title, ...children) {
 function modalSubtitle() {
   const p = el("p", { class: "modal-subtitle" });
   p.append(
-    "Ajusta los parámetros de compresión. Pasa el cursor sobre ",
-    el("span", { class: "help-icon" }, "?"),
-    " para más detalles.",
+    "Ajusta los parámetros de compresión. Pulsa sobre el icono ",
+    el(
+      "span",
+      { class: "help-icon", style: "cursor:default; pointer-events:none;" },
+      el("svg", { class: "help-icon-svg" }, el("use", { href: "img/main.svg#infoIcon" })),
+    ),
+    " de cualquier opción para ver su entrada en la guía.",
   );
   return p;
 }
