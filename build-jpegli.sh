@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script para compilar Jpegli a WebAssembly
+# Script para compilar la última versión de Jpegli (google/jpegli) a WebAssembly
 # Ejecutar desde la raíz del proyecto
 
 set -e  # Detener si hay error
@@ -23,16 +23,16 @@ if ! command -v emcc &> /dev/null; then
 fi
 
 echo "Emscripten: $(emcc --version 2>&1 | head -1)"
-mkdir -p "$BUILD_OUT"
+mkdir -p "$BUILD_OUT/jpegli" "$WEB_DIR/jpegli"
 
-# Verificar que el repo de jpegli (libjxl) existe
+# Verificar si el repo de jpegli existe y si apunta al repo correcto
 if [ ! -f "$JPEGLI_DIR/CMakeLists.txt" ]; then
     echo "ERROR: No se encontró CMakeLists.txt en $JPEGLI_DIR"
-    echo "Clonando libjxl..."
+    echo "Clonando repositorio oficial de jpegli (google/jpegli)..."
     mkdir -p "$PROJECT_DIR/src"
     cd "$PROJECT_DIR/src"
     rm -rf jpegli
-    git clone https://github.com/libjxl/libjxl.git jpegli
+    git clone https://github.com/google/jpegli.git jpegli
     cd jpegli
     git submodule update --init --recursive
 fi
@@ -53,84 +53,67 @@ emcmake cmake "$JPEGLI_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_FLAGS_RELEASE="-Os -DNDEBUG" \
     -DCMAKE_CXX_FLAGS_RELEASE="-Os -DNDEBUG" \
-    -DJPEGXL_ENABLE_TOOLS=OFF \
     -DBUILD_TESTING=OFF \
+    -DJPEGLI_ENABLE_TOOLS=OFF \
+    -DJPEGXL_ENABLE_TOOLS=OFF \
+    -DJPEGLI_ENABLE_BENCHMARK=OFF \
     -DJPEGXL_ENABLE_BENCHMARK=OFF \
+    -DJPEGLI_ENABLE_EXAMPLES=OFF \
     -DJPEGXL_ENABLE_EXAMPLES=OFF \
-    -DJPEGXL_ENABLE_JPEGLI=ON \
-    -DJPEGXL_ENABLE_JNI=OFF \
-    -DJPEGXL_ENABLE_VIEWERS=OFF \
-    -DJPEGXL_ENABLE_SJPEG=OFF \
-    -DJPEGXL_FORCE_SYSTEM_BROTLI=OFF \
-    -DJPEGXL_FORCE_SYSTEM_HWY=OFF
+    -DJPEGLI_ENABLE_JNI=OFF \
+    -DJPEGXL_ENABLE_JNI=OFF
 
 echo ""
 echo "========================================"
 echo " Compilando librerias..."
 echo "========================================"
-emmake make -j$(nproc) jpegli-static jxl_cms jxl_threads hwy
+emmake make -j$(nproc) jpegli-static hwy jpegli_cms jpegli_threads
 
 echo ""
 echo "========================================"
 echo " Verificando archivos generados..."
 echo "========================================"
-EXPECTED_LIBS=(
-    "$BUILD_DIR/lib/libjpegli-static.a"
-    "$BUILD_DIR/third_party/highway/libhwy.a"
-)
 
-ALL_OK=true
-for lib in "${EXPECTED_LIBS[@]}"; do
-    if [ -f "$lib" ]; then
-        SIZE=$(du -h "$lib" | cut -f1)
-        echo "  OK: $(basename $lib) ($SIZE)"
-    else
-        echo "  FALTA: $lib"
-        ALL_OK=false
-    fi
-done
+# Búsqueda dinámica de librerías estáticas generadas
+JPEGLI_LIB=$(find "$BUILD_DIR" -name "libjpegli-static.a" -o -name "libjpegli.a" | head -n 1)
+HWY_LIB=$(find "$BUILD_DIR" -name "libhwy.a" | head -n 1)
 
-# libjxl_threads y libjxl_cms pueden estar en lugares distintos según la versión
-for lib in "$BUILD_DIR/lib/libjxl_threads.a" "$BUILD_DIR/lib/libjxl_cms.a"; do
-    if [ -f "$lib" ]; then
-        SIZE=$(du -h "$lib" | cut -f1)
-        echo "  OK: $(basename $lib) ($SIZE)"
-    fi
-done
-
-if [ "$ALL_OK" = false ]; then
-    echo ""
-    echo "ADVERTENCIA: Algunos .a no se encontraron en las rutas esperadas."
-    echo "Buscando todos los .a generados:"
+LINK_LIBS=""
+if [ -n "$JPEGLI_LIB" ]; then
+    echo "  OK Jpegli lib: $(basename $JPEGLI_LIB) ($(du -h "$JPEGLI_LIB" | cut -f1))"
+    LINK_LIBS="$JPEGLI_LIB"
+else
+    echo "  ERROR: No se encontró libjpegli.a ni libjpegli-static.a en $BUILD_DIR"
     find "$BUILD_DIR" -name "*.a" -exec ls -lh {} \;
+    exit 1
 fi
+
+if [ -n "$HWY_LIB" ]; then
+    echo "  OK Highway lib: $(basename $HWY_LIB) ($(du -h "$HWY_LIB" | cut -f1))"
+    LINK_LIBS="$LINK_LIBS $HWY_LIB"
+fi
+
+for extra_lib in "libjpegli_threads.a" "libjpegli_cms.a" "libjxl_threads.a" "libjxl_cms.a" "libcms.a"; do
+    FOUND_EXTRA=$(find "$BUILD_DIR" -name "$extra_lib" | head -n 1)
+    if [ -n "$FOUND_EXTRA" ]; then
+        echo "  OK Extra lib: $(basename $FOUND_EXTRA)"
+        LINK_LIBS="$LINK_LIBS $FOUND_EXTRA"
+    fi
+done
 
 echo ""
 echo "========================================"
 echo " Compilando el wrapper WASM final..."
 echo "========================================"
-
-# Determinar qué librerías están disponibles para linkear
-LINK_LIBS="$BUILD_DIR/lib/libjpegli-static.a"
-
-if [ -f "$BUILD_DIR/lib/libjxl_threads.a" ]; then
-    LINK_LIBS="$LINK_LIBS $BUILD_DIR/lib/libjxl_threads.a"
-fi
-if [ -f "$BUILD_DIR/lib/libjxl_cms.a" ]; then
-    LINK_LIBS="$LINK_LIBS $BUILD_DIR/lib/libjxl_cms.a"
-fi
-if [ -f "$BUILD_DIR/third_party/highway/libhwy.a" ]; then
-    LINK_LIBS="$LINK_LIBS $BUILD_DIR/third_party/highway/libhwy.a"
-fi
-
 echo "Enlazando con: $LINK_LIBS"
 
 cd "$PROJECT_DIR"
 emcc src/jpegli-wrapper.cpp \
     -I src/jpegli \
-    -I src/jpegli/build_wasm/lib/include \
     -I src/jpegli/lib \
+    -I src/jpegli/include \
     -I src/jpegli/build_wasm \
+    -I src/jpegli/build_wasm/lib/include \
     -I src/jpegli/build_wasm/lib/include/jpegli \
     -I src/jpegli/third_party/highway \
     $LINK_LIBS \

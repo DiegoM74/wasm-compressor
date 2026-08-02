@@ -23,7 +23,7 @@ if ! command -v emcc &> /dev/null; then
 fi
 
 echo "Emscripten: $(emcc --version 2>&1 | head -1)"
-mkdir -p "$BUILD_OUT"
+mkdir -p "$BUILD_OUT/mozjpeg" "$WEB_DIR/mozjpeg"
 
 # Verificar que el repo de mozjpeg existe
 if [ ! -f "$MOZJPEG_DIR/CMakeLists.txt" ]; then
@@ -104,6 +104,7 @@ echo " Compilando el wrapper WASM final..."
 echo "========================================"
 
 cd "$PROJECT_DIR"
+mkdir -p "$BUILD_OUT/mozjpeg" "$WEB_DIR/mozjpeg"
 emcc src/mozjpeg-wrapper.c \
     -I src/mozjpeg \
     -I src/mozjpeg/build_wasm \

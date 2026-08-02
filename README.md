@@ -111,6 +111,6 @@ wasm-compressor/
 ## Roadmap
 
 - **Fase Actual**: Integración completa de MozJPEG y Jpegli con soporte para configuración avanzada de parámetros.
-- **Futuro**: Soporte para otros formatos de entrada (PNG, WebP, AVIF) para optimizar su compresión.
+- **Futuro**: Soporte para otros formatos de entrada (PNG, WebP) para optimizar su compresión.
 
 ---
