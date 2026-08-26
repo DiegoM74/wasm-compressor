@@ -59,6 +59,15 @@ self.onmessage = function (e) {
     smoothing = 0, // 0–100
     chroma_subsample = 2, // 0=4:4:4  1=4:2:2  2=4:2:0
     write_jfif = 1,
+    // Nuevos parámetros estándar y avanzados
+    dct_method = 0, // 0=ISLOW, 1=IFAST, 2=FLOAT
+    do_fancy_downsampling = 1,
+    grayscale = 0,
+    quant_baseline = 1,
+    restart_in_rows = 0,
+    write_adobe_marker = 0,
+    separate_chroma_quality = 0,
+    chroma_quality = 75,
     // Booleanos MozJPEG
     trellis = 1,
     trellis_dc = 1,
@@ -103,6 +112,15 @@ self.onmessage = function (e) {
       smoothing,
       chroma_subsample,
       write_jfif,
+      // Nuevos parámetros estándar / avanzados
+      dct_method,
+      do_fancy_downsampling,
+      grayscale,
+      quant_baseline,
+      restart_in_rows,
+      write_adobe_marker,
+      separate_chroma_quality,
+      chroma_quality,
       // Booleanos MozJPEG
       trellis,
       trellis_dc,

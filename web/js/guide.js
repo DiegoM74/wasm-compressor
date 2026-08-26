@@ -6,12 +6,30 @@ const mozjpegGuideData = [
     entries: [
       {
         id: "moz-quality",
-        name: "Calidad",
+        name: "Calidad (Luma)",
         description:
-          "Factor general que escala las matrices de cuantización DCT para equilibrar la compresión y la fidelidad visual de la imagen.",
+          "Factor general que escala las matrices de cuantización DCT para equilibrar la compresión y la fidelidad visual del canal de brillo/nitidez (luminancia Y).",
         pros: "Control directo y predecible entre tamaño del archivo y nitidez visual.",
         cons: "Valores superiores a 90 aumentan significativamente el peso con mejoras casi imperceptibles; valores inferiores a 60 provocan artefactos de bloque.",
         recommended: "85 (Rango óptimo: 70 - 85)",
+      },
+      {
+        id: "moz-separate-chroma-quality",
+        name: "Calidad de color independiente (Croma)",
+        description:
+          "Habilita una escala de calidad separada para los canales de color (Cb/Cr) independiente de la calidad de brillo (Y).",
+        pros: "Ahorra entre un 10% y un 20% de tamaño adicional comprimiendo el color más agresivamente sin afectar la nitidez de los bordes.",
+        cons: "Requiere ajustar un control adicional.",
+        recommended: "Desactivado por defecto (o activado con Croma en 70-75 para máxima compresión)",
+      },
+      {
+        id: "moz-chroma-quality",
+        name: "Calidad de Croma",
+        description:
+          "Nivel de compresión exclusivo para las componentes de color Cb y Cr cuando la calidad independiente está activada.",
+        pros: "Permite una granularidad total sobre la preservación de matices y gradientes de color.",
+        cons: "Valores inferiores a 50 pueden producir decoloración o 'color banding' en fondos uniformes.",
+        recommended: "70 - 75",
       },
       {
         id: "moz-chroma-subsample",
@@ -19,7 +37,7 @@ const mozjpegGuideData = [
         description:
           "Determina la resolución espacial del color (canales Cb y Cr) en comparación con el canal de brillo (luminancia Y).",
         pros: "El modo 4:2:0 ahorra entre un 20% y un 30% de peso respecto a 4:4:4 sin apenas pérdida perceptible en fotografías.",
-        cons: "En tipografías de color rojo intenso sobre fondo oscuro o líneas finas coloreadas, 4:2:0 puede generar un ligero borrosidad en los bordes.",
+        cons: "En tipografías de color rojo intenso sobre fondo oscuro o líneas finas coloreadas, 4:2:0 puede generar una ligera borrosidad en los bordes.",
         recommended: "4:2:0 para uso web; 4:4:4 solo para gráficos con texto en color",
       },
       {
@@ -41,15 +59,6 @@ const mozjpegGuideData = [
         recommended: "Activado",
       },
       {
-        id: "moz-base-quant-tbl",
-        name: "Tabla de cuantización base",
-        description:
-          "Matriz de pesos de frecuencia que determina qué frecuencias espaciales conservar o eliminar dentro de cada bloque de 8x8 píxeles.",
-        pros: "Las tablas avanzadas (PSNR-HVS-M, MS-SSIM o ImageMagick) preservan el detalle perceptivo humano mucho mejor que la tabla estándar JPEG Annex K.",
-        cons: "La tabla 0 (Annex K) es la más tradicional y predecible para flujos de trabajo convencionales.",
-        recommended: "0 — JPEG Annex K (o 3 — ImageMagick si se busca optimización perceptual)",
-      },
-      {
         id: "moz-smoothing",
         name: "Suavizado",
         description:
@@ -58,14 +67,92 @@ const mozjpegGuideData = [
         cons: "Valores elevados (>20) borran texturas finas, poros y bordes nítidos.",
         recommended: "0 (5 - 15 únicamente en fotos ruidosas)",
       },
+    ],
+  },
+  {
+    section: "Color y DCT",
+    entries: [
       {
-        id: "moz-write-jfif",
-        name: "Incluir cabecera JFIF",
+        id: "moz-dct-method",
+        name: "Método DCT",
         description:
-          "Inserta el bloque de metadatos de cabecera JFIF (18 bytes) al inicio del archivo JPEG.",
-        pros: "Garantiza compatibilidad absoluta al 100% con programas de visualización e indexadores antiguos.",
-        cons: "Omitirlo solo ahorra 18 bytes por archivo.",
+          "Algoritmo matemático utilizado para el cálculo de la Transformada Discreta del Coseno directa en bloques 8x8. ISLOW utiliza enteros de alta precisión de 32 bits, IFAST usa aproximaciones enteras rápidas y FLOAT emplea coma flotante.",
+        pros: "ISLOW garantiza exactitud matemática absoluta y fidelidad tonal estricta. IFAST acelera el proceso.",
+        cons: "IFAST puede introducir sutiles discrepancias de redondeo en gradientes muy suaves.",
+        recommended: "ISLOW (preciso)",
+      },
+      {
+        id: "moz-fancy-downsampling",
+        name: "Fancy downsampling",
+        description:
+          "Aplica un filtro de convolución suave y ponderado durante el submuestreo espacial de crominancia (en modos 4:2:0 y 4:2:2) en lugar de una decimación simple.",
+        pros: "Previene bordes escalonados (aliasing) y aberraciones cromáticas en transiciones contrastadas de color.",
+        cons: "Impacto computacional infinitesimal.",
         recommended: "Activado",
+      },
+      {
+        id: "moz-grayscale",
+        name: "Modo escala de grises (monocromo)",
+        description:
+          "Fuerza el espacio de color de salida a monocromo (1 canal Y), descartando completamente los canales de crominancia Cb y Cr.",
+        pros: "Reduce drásticamente el peso del archivo (30% a 50%) para fotografías en blanco y negro, bocetos, escaneos o documentos.",
+        cons: "Descarta la información de color de la imagen.",
+        recommended: "Desactivado (activar solo para imágenes monocromáticas)",
+      },
+    ],
+  },
+  {
+    section: "Calidad perceptual",
+    entries: [
+      {
+        id: "moz-tune-preset",
+        name: "Perfil perceptual (Tune)",
+        description:
+          "Aplica los perfiles de optimización rate-distortion oficiales de MozJPEG desarrollados por Mozilla (-tune-psnr, -tune-ssim, -tune-ms-ssim, -tune-hvs-psnr). Configura automáticamente la tabla de cuantización recomendada y las constantes de peso lambda de Trellis.",
+        pros: "Ajuste instantáneo y comprobado científicamente para maximizar métricas visuales humanas (SSIM/HVS) o matemáticas (PSNR).",
+        cons: "Seleccionar 'Manual' permite sobreescribir los pesos libremente para experimentación.",
+        recommended: "0 — PSNR-HVS-M (Default MozJPEG) o 1 — MS-SSIM",
+      },
+      {
+        id: "moz-base-quant-tbl",
+        name: "Tabla de cuantización base",
+        description:
+          "Matriz de pesos de frecuencia que determina qué frecuencias espaciales conservar o eliminar dentro de cada bloque de 8x8 píxeles.",
+        pros: "Las tablas avanzadas (ImageMagick 3, PSNR-HVS-M 4, MS-SSIM 2) preservan el detalle perceptivo humano mucho mejor que la tabla estándar JPEG Annex K 0.",
+        cons: "La tabla 0 (Annex K) es la más tradicional para compatibilidad con visores de los 90.",
+        recommended: "3 — ImageMagick (o la asignada por el perfil perceptual)",
+      },
+      {
+        id: "moz-overshoot-deringing",
+        name: "Overshoot deringing",
+        description:
+          "Preprocesa áreas con contrastes extremos (como texto negro sobre fondo blanco puro) permitiendo un ligero sobreimpulso que cancela el halo visual ('ringing') tras la transformada DCT.",
+        pros: "Elimina halos y rebordes molestos en tipografías, logotipos e ilustraciones sin alterar el tamaño.",
+        cons: "Ninguna desventaja apreciable.",
+        recommended: "Activado",
+      },
+    ],
+  },
+  {
+    section: "Optimización de scans",
+    entries: [
+      {
+        id: "moz-optimize-scans",
+        name: "Optimizar parámetros de scan",
+        description:
+          "Busca la distribución de espectro más eficiente en archivos progresivos para dividir los coeficientes entre diferentes pasadas (estilo jpgcrush).",
+        pros: "Genera archivos progresivos significativamente más pequeños y con mejor progresión visual.",
+        cons: "Requiere tener activada la opción 'Progresivo'.",
+        recommended: "Activado",
+      },
+      {
+        id: "moz-dc-scan-opt-mode",
+        name: "Modo optimización DC",
+        description:
+          "Controla la emisión y agrupación de coeficientes DC durante el escaneo progresivo del archivo JPEG.",
+        pros: "El modo 1 (DC separado) consigue la mejor velocidad de decodificación en navegadores web con un tamaño mínimo.",
+        cons: "El modo 0 (DC+AC juntos) es ligeramente menos eficiente pero compatible con hardware muy antiguo.",
+        recommended: "1 — DC separado",
       },
     ],
   },
@@ -138,53 +225,7 @@ const mozjpegGuideData = [
     ],
   },
   {
-    section: "Optimización de scans",
-    entries: [
-      {
-        id: "moz-optimize-scans",
-        name: "Optimizar parámetros de scan",
-        description:
-          "Busca la distribución de espectro más eficiente en archivos progresivos para dividir los coeficientes entre diferentes pasadas.",
-        pros: "Genera archivos progresivos significativamente más pequeños y con mejor progresión visual.",
-        cons: "Requiere tener activada la opción 'Progresivo'.",
-        recommended: "Activado",
-      },
-      {
-        id: "moz-dc-scan-opt-mode",
-        name: "Modo optimización DC",
-        description:
-          "Controla la emisión y agrupación de coeficientes DC durante el escaneo progresivo del archivo JPEG.",
-        pros: "El modo 1 (DC separado) consigue la mejor velocidad de decodificación en navegadores web con un tamaño mínimo.",
-        cons: "El modo 0 (DC+AC juntos) es ligeramente menos eficiente pero compatible con hardware muy antiguo.",
-        recommended: "1 — DC separado",
-      },
-    ],
-  },
-  {
-    section: "Calidad perceptual",
-    entries: [
-      {
-        id: "moz-tune-ssim",
-        name: "Optimizar para SSIM",
-        description:
-          "Ajusta internamente las constantes de peso de Trellis y tablas base para favorecer la métrica de similitud estructural SSIM por encima del error PSNR.",
-        pros: "Consigue que las texturas y bordes se sientan visualmente más naturales, mitigando distorsiones molestas para el ojo humano.",
-        cons: "Al activarse sobreescribe de forma predeterminada la tabla base a ImageMagick (3) y los pesos de escala RD.",
-        recommended: "Activado",
-      },
-      {
-        id: "moz-overshoot-deringing",
-        name: "Overshoot deringing",
-        description:
-          "Preprocesa áreas con contrastes muy altos (como texto negro sobre fondo blanco puro) para minimizar el artefacto de halo ('ringing').",
-        pros: "Elimina halos y rebordes molestos en tipografías e ilustraciones sin aumentar el peso del archivo.",
-        cons: "Ninguna desventaja aplicable en la práctica.",
-        recommended: "Activado",
-      },
-    ],
-  },
-  {
-    section: "Avanzado — escalas RD",
+    section: "Avanzado — escalas RD y formato",
     entries: [
       {
         id: "moz-lambda-auto",
@@ -202,7 +243,7 @@ const mozjpegGuideData = [
           "Factor logarítmico que pondera la fidelidad visual (distorsión) dentro de la función de costo del Trellis.",
         pros: "Permite priorizar la preservación de detalle visual si se desactiva el modo auto.",
         cons: "Valores mal elegidos pueden provocar pérdida de detalle en zonas de transición.",
-        recommended: "14.75 (automático en tune SSIM)",
+        recommended: "14.75 (automático según perfil)",
       },
       {
         id: "moz-lambda2",
@@ -217,10 +258,46 @@ const mozjpegGuideData = [
         id: "moz-delta-dc",
         name: "trellis_delta_dc_weight",
         description:
-          "Multiplicador de importancia relativa asignado a los componentes DC (luminancia base) durante Trellis.",
+          "Multiplicador de importancia relativa asignado al gradiente espacial DC durante Trellis.",
         pros: "Equilibra de manera óptima el error del brillo de fondo respecto a los detalles de alta frecuencia.",
-        cons: "Valores fuera del rango óptimo causan parpadeo de contraste en gradientes.",
+        cons: "Valores fuera del rango óptimo causan oscilaciones de contraste en gradientes.",
         recommended: "1.00",
+      },
+      {
+        id: "moz-quant-baseline",
+        name: "Forzar compatibilidad baseline de 8 bits",
+        description:
+          "Limita los coeficientes de las tablas de cuantización calculadas a un rango de 8 bits (1 a 255). Desactivarlo permite precisión de 16 bits para mayor rango dinámico en calidades extremas.",
+        pros: "Activado asegura compatibilidad con cualquier visor JPEG clásico; desactivado mejora la precisión tonal en calidades muy altas.",
+        cons: "Poco impacto en calidades estándar (60-85).",
+        recommended: "Activado",
+      },
+      {
+        id: "moz-restart-in-rows",
+        name: "Intervalo de reinicio (filas MCU)",
+        description:
+          "Inserta marcadores RST periódicos cada N filas de bloques MCU. Permite decodificación multihilo en decodificadores paralelos y acota la corrupción ante pérdidas en red.",
+        pros: "Mejora la tolerancia a fallos y permite descompresión paralela.",
+        cons: "Añade un ligero incremento de bytes por marcador.",
+        recommended: "0 (desactivado)",
+      },
+      {
+        id: "moz-write-jfif",
+        name: "Incluir cabecera JFIF",
+        description:
+          "Inserta el bloque de metadatos de cabecera JFIF APP0 (18 bytes) al inicio del archivo JPEG.",
+        pros: "Garantiza compatibilidad absoluta con indexadores y software antiguo.",
+        cons: "Omitirlo ahorra 18 bytes por imagen (compatible con navegadores web modernos).",
+        recommended: "Activado",
+      },
+      {
+        id: "moz-write-adobe",
+        name: "Incluir marcador Adobe APP14",
+        description:
+          "Inserta el marcador de metadatos APP14 de Adobe que especifica transformaciones de color históricas.",
+        pros: "Compatibilidad con aplicaciones antiguas de Adobe.",
+        cons: "Añade bytes redundantes no requeridos en la web moderna.",
+        recommended: "Desactivado",
       },
     ],
   },

@@ -12,6 +12,214 @@ typedef struct {
 static CompressedResult g_result = {NULL, 0};
 
 /*
+ * Tablas base de cuantización estándar de MozJPEG (Annex K, Flat, MS-SSIM, ImageMagick,
+ * Kodak, Klein, Watson, Ahumada, Peterson).
+ */
+static const unsigned int std_luminance_quant_tbl[9][DCTSIZE2] = {
+  {
+    /* 0: JPEG Annex K */
+    16,  11,  10,  16,  24,  40,  51,  61,
+    12,  12,  14,  19,  26,  58,  60,  55,
+    14,  13,  16,  24,  40,  57,  69,  56,
+    14,  17,  22,  29,  51,  87,  80,  62,
+    18,  22,  37,  56,  68, 109, 103,  77,
+    24,  35,  55,  64,  81, 104, 113,  92,
+    49,  64,  78,  87, 103, 121, 120, 101,
+    72,  92,  95,  98, 112, 100, 103,  99
+  },
+  {
+    /* 1: Flat */
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16
+  },
+  {
+    /* 2: MS-SSIM */
+    12,  17,  20,  21,  30,  34,  56,  63,
+    18,  20,  20,  26,  28,  51,  61,  55,
+    19,  20,  21,  26,  33,  58,  69,  55,
+    26,  26,  26,  30,  46,  87,  86,  66,
+    31,  33,  36,  40,  46,  96, 100,  73,
+    40,  35,  46,  62,  81, 100, 111,  91,
+    46,  66,  76,  86, 102, 121, 120, 101,
+    68,  90,  90,  96, 113, 102, 105, 103
+  },
+  {
+    /* 3: ImageMagick (N. Robidoux) */
+    16,  16,  16,  18,  25,  37,  56,  85,
+    16,  17,  20,  27,  34,  40,  53,  75,
+    16,  20,  24,  31,  43,  62,  91, 135,
+    18,  27,  31,  40,  53,  74, 106, 156,
+    25,  34,  43,  53,  69,  94, 131, 189,
+    37,  40,  62,  74,  94, 124, 169, 238,
+    56,  53,  91, 106, 131, 169, 226, 311,
+    85,  75, 135, 156, 189, 238, 311, 418
+  },
+  {
+    /* 4: PSNR-HVS-M Kodak */
+    9,   10,  12,  14,  27,  32,  51,  62,
+    11,  12,  14,  19,  27,  44,  59,  73,
+    12,  14,  18,  25,  42,  59,  79,  78,
+    17,  18,  25,  42,  61,  92,  87,  92,
+    23,  28,  42,  75,  79, 112, 112,  99,
+    40,  42,  59,  84,  88, 124, 132, 111,
+    42,  64,  78,  95, 105, 126, 125,  99,
+    70,  75, 100, 102, 116, 100, 107,  98
+  },
+  {
+    /* 5: Klein, Silverstein and Carney (1992) */
+    10,  12,  14,  19,  26,  38,  57,  86,
+    12,  18,  21,  28,  35,  41,  54,  76,
+    14,  21,  25,  32,  44,  63,  92, 136,
+    19,  28,  32,  41,  54,  75, 107, 157,
+    26,  35,  44,  54,  70,  95, 132, 190,
+    38,  41,  63,  75,  95, 125, 170, 239,
+    57,  54,  92, 107, 132, 170, 227, 312,
+    86,  76, 136, 157, 190, 239, 312, 419
+  },
+  {
+    /* 6: Watson, Taylor, Borthwick (1997) */
+    7,   8,   10,  14,  23,  44,  95,  241,
+    8,   8,   11,  15,  25,  47,  102, 255,
+    10,  11,  13,  19,  31,  58,  127, 255,
+    14,  15,  19,  27,  44,  83,  181, 255,
+    23,  25,  31,  44,  72,  136, 255, 255,
+    44,  47,  58,  83,  136, 255, 255, 255,
+    95,  102, 127, 181, 255, 255, 255, 255,
+    241, 255, 255, 255, 255, 255, 255, 255
+  },
+  {
+    /* 7: Ahumada, Watson, Peterson (1993) */
+    15,  11,  11,  12,  15,  19,  25,  32,
+    11,  13,  10,  10,  12,  15,  19,  24,
+    11,  10,  14,  14,  16,  18,  22,  27,
+    12,  10,  14,  18,  21,  24,  28,  33,
+    15,  12,  16,  21,  26,  31,  36,  42,
+    19,  15,  18,  24,  31,  38,  45,  53,
+    25,  19,  22,  28,  36,  45,  55,  65,
+    32,  24,  27,  33,  42,  53,  65,  77
+  },
+  {
+    /* 8: Peterson, Ahumada and Watson (1993) */
+    14,  10,  11,  14,  19,  25,  34,  45,
+    10,  11,  11,  12,  15,  20,  26,  33,
+    11,  11,  15,  18,  21,  25,  31,  38,
+    14,  12,  18,  24,  28,  33,  39,  47,
+    19,  15,  21,  28,  36,  43,  51,  59,
+    25,  20,  25,  33,  43,  54,  64,  74,
+    34,  26,  31,  39,  51,  64,  77,  91,
+    45,  33,  38,  47,  59,  74,  91,  108
+  }
+};
+
+static const unsigned int std_chrominance_quant_tbl[9][DCTSIZE2] = {
+  {
+    /* 0: JPEG Annex K */
+    17,  18,  24,  47,  99,  99,  99,  99,
+    18,  21,  26,  66,  99,  99,  99,  99,
+    24,  26,  56,  99,  99,  99,  99,  99,
+    47,  66,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99
+  },
+  {
+    /* 1: Flat */
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16,
+    16,  16,  16,  16,  16,  16,  16,  16
+  },
+  {
+    /* 2: MS-SSIM */
+    8,   12,  15,  15,  86,  96,  96,  98,
+    13,  13,  15,  26,  90,  96,  99,  98,
+    12,  15,  18,  96,  99,  99,  99,  99,
+    17,  16,  90,  96,  99,  99,  99,  99,
+    96,  96,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99
+  },
+  {
+    /* 3: ImageMagick (N. Robidoux) */
+    16,  16,  16,  18,  25,  37,  56,  85,
+    16,  17,  20,  27,  34,  40,  53,  75,
+    16,  20,  24,  31,  43,  62,  91, 135,
+    18,  27,  31,  40,  53,  74, 106, 156,
+    25,  34,  43,  53,  69,  94, 131, 189,
+    37,  40,  62,  74,  94, 124, 169, 238,
+    56,  53,  91, 106, 131, 169, 226, 311,
+    85,  75, 135, 156, 189, 238, 311, 418
+  },
+  {
+    /* 4: PSNR-HVS-M Kodak */
+    9,   10,  17,  19,  62,  89,  91,  97,
+    12,  13,  18,  29,  84,  91,  88,  98,
+    14,  19,  29,  93,  95,  95,  98,  97,
+    20,  26,  84,  88,  95,  95,  98,  94,
+    26,  86,  91,  93,  97,  99,  98,  99,
+    99, 100,  98,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99,
+    97,  97,  99,  99,  99,  99,  97,  99
+  },
+  {
+    /* 5: Klein, Silverstein and Carney (1992) */
+    10,  12,  14,  19,  26,  38,  57,  86,
+    12,  18,  21,  28,  35,  41,  54,  76,
+    14,  21,  25,  32,  44,  63,  92, 136,
+    19,  28,  32,  41,  54,  75, 107, 157,
+    26,  35,  44,  54,  70,  95, 132, 190,
+    38,  41,  63,  75,  95, 125, 170, 239,
+    57,  54,  92, 107, 132, 170, 227, 312,
+    86,  76, 136, 157, 190, 239, 312, 419
+  },
+  {
+    /* 6: Watson, Taylor, Borthwick (1997) */
+    7,   8,   10,  14,  23,  44,  95,  241,
+    8,   8,   11,  15,  25,  47,  102, 255,
+    10,  11,  13,  19,  31,  58,  127, 255,
+    14,  15,  19,  27,  44,  83,  181, 255,
+    23,  25,  31,  44,  72,  136, 255, 255,
+    44,  47,  58,  83,  136, 255, 255, 255,
+    95,  102, 127, 181, 255, 255, 255, 255,
+    241, 255, 255, 255, 255, 255, 255, 255
+  },
+  {
+    /* 7: Ahumada, Watson, Peterson (1993) */
+    15,  11,  11,  12,  15,  19,  25,  32,
+    11,  13,  10,  10,  12,  15,  19,  24,
+    11,  10,  14,  14,  16,  18,  22,  27,
+    12,  10,  14,  18,  21,  24,  28,  33,
+    15,  12,  16,  21,  26,  31,  36,  42,
+    19,  15,  18,  24,  31,  38,  45,  53,
+    25,  19,  22,  28,  36,  45,  55,  65,
+    32,  24,  27,  33,  42,  53,  65,  77
+  },
+  {
+    /* 8: Peterson, Ahumada and Watson (1993) */
+    14,  10,  11,  14,  19,  25,  34,  45,
+    10,  11,  11,  12,  15,  20,  26,  33,
+    11,  11,  15,  18,  21,  25,  31,  38,
+    14,  12,  18,  24,  28,  33,  39,  47,
+    19,  15,  21,  28,  36,  43,  51,  59,
+    25,  20,  25,  33,  43,  54,  64,  74,
+    34,  26,  31,  39,  51,  64,  77,  91,
+    45,  33,  38,  47,  59,  74,  91,  108
+  }
+};
+
+/*
  * compress_image — wraps MozJPEG with the full set of available parameters.
  *
  * Boolean MozJPEG extensions (jpeg_c_set_bool_param):
@@ -34,13 +242,21 @@ static CompressedResult g_result = {NULL, 0};
  *   lambda_log_scale2  → JFLOAT_LAMBDA_LOG_SCALE2      — RD lambda size scale
  *   trellis_delta_dc_weight → JFLOAT_TRELLIS_DELTA_DC_WEIGHT — DC weight in trellis
  *
- * Standard libjpeg fields:
- *   quality            — 0–100
- *   progressive        — 0=baseline, 1=progressive
- *   optimize_coding    — 0/1 (Huffman optimization)
- *   smoothing          — 0–100 (input smoothing filter)
- *   chroma_subsample   — 0=4:4:4, 1=4:2:2, 2=4:2:0
- *   write_jfif         — 0=omit JFIF header (saves 18 bytes), 1=include
+ * Standard & Advanced libjpeg fields:
+ *   quality                 — 0–100 (luma / default quality)
+ *   progressive             — 0=baseline, 1=progressive
+ *   optimize_coding         — 0/1 (Huffman optimization)
+ *   smoothing               — 0–100 (input smoothing filter)
+ *   chroma_subsample        — 0=4:4:4, 1=4:2:2, 2=4:2:0
+ *   write_jfif              — 0=omit JFIF header (saves 18 bytes), 1=include
+ *   dct_method              — 0=ISLOW (accurate integer), 1=IFAST (fast integer), 2=FLOAT
+ *   do_fancy_downsampling   — 0=fast downsample, 1=fancy/smooth downsample (if libjpeg >= 70)
+ *   grayscale               — 0=color (YCbCr/RGB), 1=monochrome (Grayscale)
+ *   quant_baseline          — 0=allow 16-bit quantizers, 1=force 8-bit baseline
+ *   restart_in_rows         — MCU rows per restart interval (0=disabled)
+ *   write_adobe_marker      — 0=omit Adobe APP14 marker, 1=include
+ *   separate_chroma_quality — 0=disabled, 1=use chroma_quality for color channels
+ *   chroma_quality          — 0–100 (chrominance quality when separate)
  */
 CompressedResult* compress_image(
     unsigned char* input_buffer,
@@ -51,6 +267,15 @@ CompressedResult* compress_image(
     int smoothing,
     int chroma_subsample,
     int write_jfif,
+    /* Nuevos parámetros estándar / avanzados */
+    int dct_method,
+    int do_fancy_downsampling,
+    int grayscale,
+    int quant_baseline,
+    int restart_in_rows,
+    int write_adobe_marker,
+    int separate_chroma_quality,
+    int chroma_quality,
     /* Boolean MozJPEG extensions */
     int trellis,
     int trellis_dc,
@@ -107,16 +332,40 @@ CompressedResult* compress_image(
     cinfo_out.in_color_space   = (components == 3) ? JCS_RGB : JCS_GRAYSCALE;
 
     jpeg_set_defaults(&cinfo_out);
-    jpeg_set_quality(&cinfo_out, quality, TRUE);
+
+    /* ── Espacio de color de salida ── */
+    if (grayscale) {
+        jpeg_set_colorspace(&cinfo_out, JCS_GRAYSCALE);
+    }
+
+    /* ── Configuración de tablas de cuantización base y calidad ── */
+    boolean force_baseline = quant_baseline ? TRUE : FALSE;
+    int tbl_idx = (base_quant_tbl >= 0 && base_quant_tbl <= 8) ? base_quant_tbl : 0;
+    jpeg_c_set_int_param(&cinfo_out, JINT_BASE_QUANT_TBL_IDX, tbl_idx);
+
+    int luma_q = quality;
+    int chroma_q = (separate_chroma_quality && components == 3 && !grayscale) ? chroma_quality : quality;
+
+    /* Configurar tablas de cuantización directamente con la escala calculada */
+    jpeg_add_quant_table(&cinfo_out, 0, std_luminance_quant_tbl[tbl_idx],
+                         jpeg_quality_scaling(luma_q), force_baseline);
+    jpeg_add_quant_table(&cinfo_out, 1, std_chrominance_quant_tbl[tbl_idx],
+                         jpeg_quality_scaling(chroma_q), force_baseline);
 
     /* ── Standard libjpeg fields ── */
-    cinfo_out.progressive_mode = progressive;
-    cinfo_out.optimize_coding  = optimize_coding;
-    cinfo_out.smoothing_factor = smoothing;
-    cinfo_out.write_JFIF_header = write_jfif;
+    cinfo_out.progressive_mode       = progressive;
+    cinfo_out.optimize_coding        = optimize_coding;
+    cinfo_out.smoothing_factor       = smoothing;
+    cinfo_out.write_JFIF_header      = write_jfif;
+    cinfo_out.dct_method             = (J_DCT_METHOD)dct_method;
+#if JPEG_LIB_VERSION >= 70
+    cinfo_out.do_fancy_downsampling  = do_fancy_downsampling ? TRUE : FALSE;
+#endif
+    cinfo_out.restart_in_rows        = restart_in_rows;
+    cinfo_out.write_Adobe_marker     = write_adobe_marker ? TRUE : FALSE;
 
-    /* ── Chroma subsampling ── */
-    if (components == 3) {
+    /* ── Chroma subsampling (si no es escala de grises) ── */
+    if (components == 3 && !grayscale) {
         switch (chroma_subsample) {
             case 0: /* 4:4:4 — no subsampling */
                 cinfo_out.comp_info[0].h_samp_factor = 1;
@@ -156,7 +405,6 @@ CompressedResult* compress_image(
     jpeg_c_set_bool_param(&cinfo_out, JBOOLEAN_OPTIMIZE_SCANS,        optimize_scans);
 
     /* ── Integer MozJPEG extensions ── */
-    jpeg_c_set_int_param(&cinfo_out, JINT_BASE_QUANT_TBL_IDX,    base_quant_tbl);
     jpeg_c_set_int_param(&cinfo_out, JINT_TRELLIS_FREQ_SPLIT,     trellis_freq_split);
     jpeg_c_set_int_param(&cinfo_out, JINT_TRELLIS_NUM_LOOPS,      trellis_num_loops);
     jpeg_c_set_int_param(&cinfo_out, JINT_DC_SCAN_OPT_MODE,       dc_scan_opt_mode);

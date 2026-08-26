@@ -185,11 +185,23 @@ function buildMozjpegModal() {
     { value: 1, text: "4:2:2" },
     { value: 2, text: "4:2:0 (mejor compresión)", selected: true },
   ];
+  const dctOpts = [
+    { value: 0, text: "ISLOW (preciso, recomendado)", selected: true },
+    { value: 1, text: "IFAST (rápido, menos preciso)" },
+    { value: 2, text: "FLOAT (coma flotante)" },
+  ];
+  const tuneOpts = [
+    { value: 0, text: "0 — PSNR-HVS-M (Default MozJPEG)", selected: true },
+    { value: 1, text: "1 — MS-SSIM (Similitud multi-escala)" },
+    { value: 2, text: "2 — SSIM (Similitud estructural)" },
+    { value: 3, text: "3 — PSNR (Ratio señal-ruido)" },
+    { value: 4, text: "4 — Personalizado / Manual" },
+  ];
   const quantOpts = [
-    { value: 0, text: "0 — JPEG Annex K (estándar)", selected: true },
+    { value: 0, text: "0 — JPEG Annex K (estándar)" },
     { value: 1, text: "1 — Flat (uniforme)" },
     { value: 2, text: "2 — MS-SSIM (ringing reducido)" },
-    { value: 3, text: "3 — ImageMagick (alta frecuencia)" },
+    { value: 3, text: "3 — ImageMagick (alta frecuencia)", selected: true },
     { value: 4, text: "4 — PSNR-HVS-M Kodak" },
     { value: 5, text: "5 — HVS (visión humana)" },
     { value: 6, text: "6 — HVS + PSNR" },
@@ -204,6 +216,27 @@ function buildMozjpegModal() {
 
   // Clase compartida por los tres sliders de escala RD
   const LAMBDA_CLASS = "moz-lambda-manual moz-lambda-disabled";
+
+  const colorDct = accordion(
+    "Color y DCT",
+    selectGroup({
+      id: "moz-dct-method",
+      label: "Método DCT",
+      help: "Algoritmo matemático para calcular la Transformada Discreta del Coseno. ISLOW proporciona la mayor precisión y menor ruido en gradientes.",
+      options: dctOpts,
+    }),
+    checkboxGroup({
+      id: "moz-fancy-downsampling",
+      label: "Fancy downsampling",
+      checked: true,
+      help: "Aplica un filtro de interpolación suave de alta calidad en el submuestreo de color (4:2:0 / 4:2:2), mitigando artefactos dentados y color bleeding.",
+    }),
+    checkboxGroup({
+      id: "moz-grayscale",
+      label: "Modo escala de grises (monocromo)",
+      help: "Elimina los canales de crominancia y genera un JPEG de 1 canal. Reduce el peso entre un 30% y un 50% para fotos en blanco y negro o documentos.",
+    }),
+  );
 
   const trellis = accordion(
     "Trellis quantization",
@@ -271,11 +304,17 @@ function buildMozjpegModal() {
 
   const perceptual = accordion(
     "Calidad perceptual",
-    checkboxGroup({
-      id: "moz-tune-ssim",
-      label: "Optimizar para SSIM",
-      checked: true,
-      help: "Ajusta internamente los pesos de trellis para maximizar el índice SSIM (similitud estructural). Produce resultados visualmente más agradables.",
+    selectGroup({
+      id: "moz-tune-preset",
+      label: "Perfil perceptual (Tune)",
+      help: "Perfiles optimizados de fábrica para diferentes métricas de calidad. Al seleccionar un perfil se ajustan automáticamente la tabla de cuantización base y los pesos lambda de Trellis.",
+      options: tuneOpts,
+    }),
+    selectGroup({
+      id: "moz-base-quant-tbl",
+      label: "Tabla de cuantización base",
+      help: "Las tablas de cuantización determinan cuánto detalle se descarta en cada frecuencia espacial al comprimir. Las opciones estándar priorizan compatibilidad; las optimizadas (HVS, PSNR) preservan mejor la calidad visual percibida.",
+      options: quantOpts,
     }),
     checkboxGroup({
       id: "moz-overshoot-deringing",
@@ -286,19 +325,18 @@ function buildMozjpegModal() {
   );
 
   const rdAdvanced = accordion(
-    "Avanzado — escalas RD",
+    "Avanzado — escalas RD y formato",
     el(
       "p",
       { class: "rd-hint" },
-      "Estos parámetros controlan el balance rate-distortion interno del trellis. Déjalos en “auto” salvo que sepas lo que haces.",
+      "Control fino del balance rate-distortion interno de Trellis y parámetros de compatibilidad binaria.",
     ),
     checkboxGroup({
       id: "moz-lambda-auto",
       label: "Usar valores por defecto (auto)",
       checked: true,
-      help: "Si está marcado, las tres escalas de abajo se ignoran y MozJPEG usa sus valores internos.",
+      help: "Si está marcado, las tres escalas de abajo se calculan automáticamente según el perfil perceptual elegido o valores internos de MozJPEG.",
     }),
-    // Los tres sliders usan divisor:100 para mostrar el valor real como float
     sliderGroup({
       id: "moz-lambda1",
       label: "lambda_log_scale1",
@@ -324,13 +362,39 @@ function buildMozjpegModal() {
     sliderGroup({
       id: "moz-delta-dc",
       label: "trellis_delta_dc_weight",
-      help: "Peso del componente DC en la función de coste trellis. Default interno ≈ 1.0.",
+      help: "Peso del gradiente DC en la función de coste trellis. Default interno ≈ 1.0.",
       min: 0,
       max: 500,
       value: 100,
       step: 5,
       divisor: 100,
       extraClass: LAMBDA_CLASS,
+    }),
+    checkboxGroup({
+      id: "moz-quant-baseline",
+      label: "Forzar compatibilidad baseline de 8 bits",
+      checked: true,
+      help: "Limita las matrices de cuantización a valores de 8 bits (1–255). Desactivarlo permite cuantizadores de 16 bits para mayor rango dinámico en calidades extremas.",
+    }),
+    sliderGroup({
+      id: "moz-restart-in-rows",
+      label: "Intervalo de reinicio (filas MCU)",
+      help: "Inserta marcadores RST cada N filas de bloques MCU. Facilita la descompresión paralela multinúcleo y resistencia a errores de transmisión. 0 = desactivado.",
+      min: 0,
+      max: 64,
+      value: 0,
+    }),
+    checkboxGroup({
+      id: "moz-write-jfif",
+      label: "Incluir cabecera JFIF",
+      checked: true,
+      help: "La cabecera JFIF ocupa 18 bytes. Desactivarla ahorra ese espacio pero incumple el estándar (compatible con todos los navegadores web modernos).",
+    }),
+    checkboxGroup({
+      id: "moz-write-adobe",
+      label: "Incluir marcador Adobe APP14",
+      checked: false,
+      help: "Inserta el bloque de metadatos Adobe APP14 en la cabecera. Mantenerlo desactivado ahorra bytes redundantes en la web.",
     }),
   );
 
@@ -340,11 +404,26 @@ function buildMozjpegModal() {
     [
       sliderGroup({
         id: "moz-quality",
-        label: "Calidad",
-        help: "Relación calidad/tamaño. 60-85 es el rango recomendado.",
+        label: "Calidad (Luma)",
+        help: "Relación calidad/tamaño principal para el canal de brillo (Y). 60-85 es el rango recomendado.",
         min: 0,
         max: 100,
         value: 85,
+      }),
+      checkboxGroup({
+        id: "moz-separate-chroma-quality",
+        label: "Calidad de color independiente (Croma)",
+        help: "Permite asignar un nivel de calidad de compresión diferente a los canales de color (Cb/Cr). Como el ojo humano es menos sensible al color, bajar este valor reduce tamaño sin pérdida apreciable de nitidez.",
+        checked: false,
+      }),
+      sliderGroup({
+        id: "moz-chroma-quality",
+        label: "Calidad de Croma (Color)",
+        help: "Nivel de calidad exclusivo para la información de color. Recomendado entre 65 y 75 cuando está activo.",
+        min: 0,
+        max: 100,
+        value: 75,
+        extraClass: "moz-hidden",
       }),
       selectGroup({
         id: "moz-chroma-subsample",
@@ -364,12 +443,6 @@ function buildMozjpegModal() {
         checked: true,
         help: "Genera tablas Huffman óptimas para cada imagen (2 pasadas). Reduce tamaño a costa de más tiempo.",
       }),
-      selectGroup({
-        id: "moz-base-quant-tbl",
-        label: "Tabla de cuantización base",
-        help: "Las tablas de cuantización determinan cuánto detalle se descarta en cada frecuencia espacial al comprimir. Las opciones estándar priorizan compatibilidad; las optimizadas (HVS, PSNR) preservan mejor la calidad visual percibida.",
-        options: quantOpts,
-      }),
       sliderGroup({
         id: "moz-smoothing",
         label: "Suavizado",
@@ -378,15 +451,10 @@ function buildMozjpegModal() {
         max: 100,
         value: 0,
       }),
-      checkboxGroup({
-        id: "moz-write-jfif",
-        label: "Incluir cabecera JFIF",
-        checked: true,
-        help: "La cabecera JFIF ocupa 18 bytes. Desactivarla ahorra ese espacio pero incumple el estándar (compatible con todos los navegadores web modernos).",
-      }),
-      trellis,
-      scanOpt,
+      colorDct,
       perceptual,
+      scanOpt,
+      trellis,
       rdAdvanced,
     ],
     { cancelId: "moz-cancel", applyId: "moz-apply" },
@@ -547,11 +615,43 @@ document.body.append(buildMozjpegModal(), buildJpegliModal());
 const modalMoz = g("modal-mozjpeg");
 const mozQuality = g("moz-quality");
 const mozQualityVal = g("moz-quality-value");
+const mozSeparateChroma = g("moz-separate-chroma-quality");
+const mozChromaQuality = g("moz-chroma-quality");
+const mozChromaQualityVal = g("moz-chroma-quality-value");
+const mozChromaSubsample = g("moz-chroma-subsample");
 const mozProgressive = g("moz-progressive");
+const mozOptimizeCoding = g("moz-optimize-coding");
+const mozSmoothing = g("moz-smoothing");
+const mozSmoothingVal = g("moz-smoothing-value");
+const mozDctMethod = g("moz-dct-method");
+const mozFancyDownsampling = g("moz-fancy-downsampling");
+const mozGrayscale = g("moz-grayscale");
+const mozTunePreset = g("moz-tune-preset");
+const mozBaseQuantTbl = g("moz-base-quant-tbl");
+const mozOvershootDeringing = g("moz-overshoot-deringing");
+const mozOptimizeScans = g("moz-optimize-scans");
+const mozDcScanOptMode = g("moz-dc-scan-opt-mode");
 const mozTrellis = g("moz-trellis");
 const mozTrellisDc = g("moz-trellis-dc");
-const mozTuneSsim = g("moz-tune-ssim");
-const mozOptimizeScans = g("moz-optimize-scans");
+const mozTrellisEobOpt = g("moz-trellis-eob-opt");
+const mozUseScansInTrellis = g("moz-use-scans-in-trellis");
+const mozTrellisQOpt = g("moz-trellis-q-opt");
+const mozTrellisFreqSplit = g("moz-trellis-freq-split");
+const mozTrellisFreqSplitVal = g("moz-trellis-freq-split-value");
+const mozTrellisNumLoops = g("moz-trellis-num-loops");
+const mozTrellisNumLoopsVal = g("moz-trellis-num-loops-value");
+const mozLambdaAuto = g("moz-lambda-auto");
+const mozLambda1 = g("moz-lambda1");
+const mozLambda1Val = g("moz-lambda1-value");
+const mozLambda2 = g("moz-lambda2");
+const mozLambda2Val = g("moz-lambda2-value");
+const mozDeltaDc = g("moz-delta-dc");
+const mozDeltaDcVal = g("moz-delta-dc-value");
+const mozQuantBaseline = g("moz-quant-baseline");
+const mozRestartInRows = g("moz-restart-in-rows");
+const mozRestartInRowsVal = g("moz-restart-in-rows-value");
+const mozWriteJfif = g("moz-write-jfif");
+const mozWriteAdobe = g("moz-write-adobe");
 const mozApply = g("moz-apply");
 const mozCancel = g("moz-cancel");
 
@@ -587,14 +687,48 @@ document.querySelectorAll(".accordion-header").forEach((header) => {
   });
 });
 
+// ── Helpers de actualización de UI MozJPEG ──
+function updateMozjpegChromaMode() {
+  const isSep = mozSeparateChroma?.checked;
+  const row = mozChromaQuality?.closest(".form-group");
+  if (row) row.classList.toggle("moz-hidden", !isSep);
+}
+
+function applyMozjpegTunePreset(presetVal) {
+  const preset = parseInt(presetVal, 10);
+  if (preset === 0) { // PSNR-HVS-M (MozJPEG default)
+    if (mozBaseQuantTbl) mozBaseQuantTbl.value = "3";
+    if (mozLambda1) { mozLambda1.value = "1475"; mozLambda1Val.textContent = "14.75"; }
+    if (mozLambda2) { mozLambda2.value = "1650"; mozLambda2Val.textContent = "16.50"; }
+    if (mozDeltaDc) { mozDeltaDc.value = "100"; mozDeltaDcVal.textContent = "1.00"; }
+  } else if (preset === 1) { // MS-SSIM
+    if (mozBaseQuantTbl) mozBaseQuantTbl.value = "3";
+    if (mozLambda1) { mozLambda1.value = "1200"; mozLambda1Val.textContent = "12.00"; }
+    if (mozLambda2) { mozLambda2.value = "1300"; mozLambda2Val.textContent = "13.00"; }
+    if (mozDeltaDc) { mozDeltaDc.value = "100"; mozDeltaDcVal.textContent = "1.00"; }
+  } else if (preset === 2) { // SSIM
+    if (mozBaseQuantTbl) mozBaseQuantTbl.value = "1";
+    if (mozLambda1) { mozLambda1.value = "1150"; mozLambda1Val.textContent = "11.50"; }
+    if (mozLambda2) { mozLambda2.value = "1275"; mozLambda2Val.textContent = "12.75"; }
+    if (mozDeltaDc) { mozDeltaDc.value = "100"; mozDeltaDcVal.textContent = "1.00"; }
+  } else if (preset === 3) { // PSNR
+    if (mozBaseQuantTbl) mozBaseQuantTbl.value = "1";
+    if (mozLambda1) { mozLambda1.value = "900"; mozLambda1Val.textContent = "9.00"; }
+    if (mozLambda2) { mozLambda2.value = "0"; mozLambda2Val.textContent = "0.00"; }
+    if (mozDeltaDc) { mozDeltaDc.value = "100"; mozDeltaDcVal.textContent = "1.00"; }
+  }
+}
+
 // ── Listeners internos de la modal MozJPEG ──
 function initMozjpegModalListeners() {
   // Sliders enteros: sincroniza etiqueta con el valor del slider
   for (const [sliderId, labelId] of Object.entries({
     "moz-quality": "moz-quality-value",
+    "moz-chroma-quality": "moz-chroma-quality-value",
     "moz-smoothing": "moz-smoothing-value",
     "moz-trellis-freq-split": "moz-trellis-freq-split-value",
     "moz-trellis-num-loops": "moz-trellis-num-loops-value",
+    "moz-restart-in-rows": "moz-restart-in-rows-value",
   })) {
     const slider = g(sliderId),
       label = g(labelId);
@@ -615,11 +749,21 @@ function initMozjpegModalListeners() {
     if (slider && label)
       slider.addEventListener("input", () => {
         label.textContent = (slider.value / divisor).toFixed(2);
+        if (mozTunePreset) mozTunePreset.value = "4"; // Cambia a Manual al editar
       });
   }
 
+  mozBaseQuantTbl?.addEventListener("change", () => {
+    if (mozTunePreset) mozTunePreset.value = "4"; // Cambia a Manual al editar tabla
+  });
+
+  mozSeparateChroma?.addEventListener("change", updateMozjpegChromaMode);
+  mozTunePreset?.addEventListener("change", (e) => {
+    applyMozjpegTunePreset(e.target.value);
+  });
+
   // Cuando "auto" está activo, los sliders lambda se muestran deshabilitados visualmente
-  g("moz-lambda-auto")?.addEventListener("change", (e) => {
+  mozLambdaAuto?.addEventListener("change", (e) => {
     document.querySelectorAll(".moz-lambda-manual").forEach((el) => {
       el.classList.toggle("moz-lambda-disabled", e.target.checked);
     });
@@ -644,48 +788,42 @@ function initJpegliModalListeners() {
 function applyMozjpegConfig() {
   if (typeof mozjpegConfig === "undefined") return;
 
-  mozjpegConfig.quality = parseInt(g("moz-quality").value);
-  mozjpegConfig.progressive = g("moz-progressive").checked;
-  mozjpegConfig.optimize_coding = g("moz-optimize-coding").checked;
-  mozjpegConfig.smoothing = parseInt(g("moz-smoothing").value);
-  mozjpegConfig.chroma_subsample = parseInt(g("moz-chroma-subsample").value);
-  mozjpegConfig.write_jfif = g("moz-write-jfif").checked;
-  mozjpegConfig.trellis = g("moz-trellis").checked;
-  mozjpegConfig.trellis_dc = g("moz-trellis-dc").checked;
-  mozjpegConfig.trellis_eob_opt = g("moz-trellis-eob-opt").checked;
-  mozjpegConfig.use_scans_in_trellis = g("moz-use-scans-in-trellis").checked;
-  mozjpegConfig.trellis_q_opt = g("moz-trellis-q-opt").checked;
-  mozjpegConfig.overshoot_deringing = g("moz-overshoot-deringing").checked;
-  mozjpegConfig.optimize_scans = g("moz-optimize-scans").checked;
-  mozjpegConfig.tune_ssim = g("moz-tune-ssim").checked;
-  mozjpegConfig.base_quant_tbl = parseInt(g("moz-base-quant-tbl").value);
-  mozjpegConfig.trellis_freq_split = parseInt(
-    g("moz-trellis-freq-split").value,
-  );
-  mozjpegConfig.trellis_num_loops = parseInt(g("moz-trellis-num-loops").value);
-  mozjpegConfig.dc_scan_opt_mode = parseInt(g("moz-dc-scan-opt-mode").value);
+  mozjpegConfig.quality = parseInt(mozQuality.value, 10);
+  mozjpegConfig.separate_chroma_quality = mozSeparateChroma.checked;
+  mozjpegConfig.chroma_quality = parseInt(mozChromaQuality.value, 10);
+  mozjpegConfig.chroma_subsample = parseInt(mozChromaSubsample.value, 10);
+  mozjpegConfig.progressive = mozProgressive.checked;
+  mozjpegConfig.optimize_coding = mozOptimizeCoding.checked;
+  mozjpegConfig.smoothing = parseInt(mozSmoothing.value, 10);
+  mozjpegConfig.dct_method = parseInt(mozDctMethod.value, 10);
+  mozjpegConfig.do_fancy_downsampling = mozFancyDownsampling.checked;
+  mozjpegConfig.grayscale = mozGrayscale.checked;
+  mozjpegConfig.tune_preset = parseInt(mozTunePreset.value, 10);
+  mozjpegConfig.base_quant_tbl = parseInt(mozBaseQuantTbl.value, 10);
+  mozjpegConfig.overshoot_deringing = mozOvershootDeringing.checked;
+  mozjpegConfig.optimize_scans = mozOptimizeScans.checked;
+  mozjpegConfig.dc_scan_opt_mode = parseInt(mozDcScanOptMode.value, 10);
+  mozjpegConfig.trellis = mozTrellis.checked;
+  mozjpegConfig.trellis_dc = mozTrellisDc.checked;
+  mozjpegConfig.trellis_eob_opt = mozTrellisEobOpt.checked;
+  mozjpegConfig.use_scans_in_trellis = mozUseScansInTrellis.checked;
+  mozjpegConfig.trellis_q_opt = mozTrellisQOpt.checked;
+  mozjpegConfig.trellis_freq_split = parseInt(mozTrellisFreqSplit.value, 10);
+  mozjpegConfig.trellis_num_loops = parseInt(mozTrellisNumLoops.value, 10);
+  mozjpegConfig.quant_baseline = mozQuantBaseline.checked;
+  mozjpegConfig.restart_in_rows = parseInt(mozRestartInRows.value, 10);
+  mozjpegConfig.write_jfif = mozWriteJfif.checked;
+  mozjpegConfig.write_adobe_marker = mozWriteAdobe.checked;
 
-  if (g("moz-lambda-auto")?.checked) {
+  if (mozLambdaAuto?.checked) {
     mozjpegConfig.lambda_log_scale1 = null;
     mozjpegConfig.lambda_log_scale2 = null;
     mozjpegConfig.trellis_delta_dc_weight = null;
   } else {
-    mozjpegConfig.lambda_log_scale1 = parseFloat(g("moz-lambda1").value) / 100;
-    mozjpegConfig.lambda_log_scale2 = parseFloat(g("moz-lambda2").value) / 100;
-    mozjpegConfig.trellis_delta_dc_weight =
-      parseFloat(g("moz-delta-dc").value) / 100;
+    mozjpegConfig.lambda_log_scale1 = parseFloat(mozLambda1.value) / 100;
+    mozjpegConfig.lambda_log_scale2 = parseFloat(mozLambda2.value) / 100;
+    mozjpegConfig.trellis_delta_dc_weight = parseFloat(mozDeltaDc.value) / 100;
   }
-}
-
-// Cuando el usuario activa "Optimizar para SSIM", se sobreescriben
-// base_quant_tbl y las escalas lambda con los valores óptimos para esa métrica.
-// Esto es un preset de conveniencia, no un parámetro del worker.
-function applyTuneSsimPreset(enabled) {
-  if (!enabled || typeof mozjpegConfig === "undefined") return;
-  mozjpegConfig.base_quant_tbl = 3;
-  mozjpegConfig.lambda_log_scale1 = 14.75;
-  mozjpegConfig.lambda_log_scale2 = 16.5;
-  mozjpegConfig.trellis_delta_dc_weight = 1.0;
 }
 
 // ── Lógica de configuración Jpegli ──
@@ -700,17 +838,64 @@ g("config-mozjpeg-btn").addEventListener("click", () => {
   if (typeof mozjpegConfig === "undefined") return;
   mozQuality.value = mozjpegConfig.quality;
   mozQualityVal.textContent = mozjpegConfig.quality;
+  mozSeparateChroma.checked = mozjpegConfig.separate_chroma_quality;
+  mozChromaQuality.value = mozjpegConfig.chroma_quality;
+  mozChromaQualityVal.textContent = mozjpegConfig.chroma_quality;
+  mozChromaSubsample.value = mozjpegConfig.chroma_subsample;
   mozProgressive.checked = mozjpegConfig.progressive;
+  mozOptimizeCoding.checked = mozjpegConfig.optimize_coding;
+  mozSmoothing.value = mozjpegConfig.smoothing;
+  mozSmoothingVal.textContent = mozjpegConfig.smoothing;
+  mozDctMethod.value = mozjpegConfig.dct_method;
+  mozFancyDownsampling.checked = mozjpegConfig.do_fancy_downsampling;
+  mozGrayscale.checked = mozjpegConfig.grayscale;
+  mozTunePreset.value = mozjpegConfig.tune_preset;
+  mozBaseQuantTbl.value = mozjpegConfig.base_quant_tbl;
+  mozOvershootDeringing.checked = mozjpegConfig.overshoot_deringing;
+  mozOptimizeScans.checked = mozjpegConfig.optimize_scans;
+  mozDcScanOptMode.value = mozjpegConfig.dc_scan_opt_mode;
   mozTrellis.checked = mozjpegConfig.trellis;
   mozTrellisDc.checked = mozjpegConfig.trellis_dc;
-  mozTuneSsim.checked = mozjpegConfig.tune_ssim ?? true;
-  mozOptimizeScans.checked = mozjpegConfig.optimize_scans;
+  mozTrellisEobOpt.checked = mozjpegConfig.trellis_eob_opt;
+  mozUseScansInTrellis.checked = mozjpegConfig.use_scans_in_trellis;
+  mozTrellisQOpt.checked = mozjpegConfig.trellis_q_opt;
+  mozTrellisFreqSplit.value = mozjpegConfig.trellis_freq_split;
+  mozTrellisFreqSplitVal.textContent = mozjpegConfig.trellis_freq_split;
+  mozTrellisNumLoops.value = mozjpegConfig.trellis_num_loops;
+  mozTrellisNumLoopsVal.textContent = mozjpegConfig.trellis_num_loops;
+  mozQuantBaseline.checked = mozjpegConfig.quant_baseline;
+  mozRestartInRows.value = mozjpegConfig.restart_in_rows;
+  mozRestartInRowsVal.textContent = mozjpegConfig.restart_in_rows;
+  mozWriteJfif.checked = mozjpegConfig.write_jfif;
+  mozWriteAdobe.checked = mozjpegConfig.write_adobe_marker;
+
+  const isLambdaAuto =
+    mozjpegConfig.lambda_log_scale1 == null &&
+    mozjpegConfig.lambda_log_scale2 == null &&
+    mozjpegConfig.trellis_delta_dc_weight == null;
+  if (mozLambdaAuto) mozLambdaAuto.checked = isLambdaAuto;
+  if (mozjpegConfig.lambda_log_scale1 != null) {
+    mozLambda1.value = Math.round(mozjpegConfig.lambda_log_scale1 * 100);
+    mozLambda1Val.textContent = mozjpegConfig.lambda_log_scale1.toFixed(2);
+  }
+  if (mozjpegConfig.lambda_log_scale2 != null) {
+    mozLambda2.value = Math.round(mozjpegConfig.lambda_log_scale2 * 100);
+    mozLambda2Val.textContent = mozjpegConfig.lambda_log_scale2.toFixed(2);
+  }
+  if (mozjpegConfig.trellis_delta_dc_weight != null) {
+    mozDeltaDc.value = Math.round(mozjpegConfig.trellis_delta_dc_weight * 100);
+    mozDeltaDcVal.textContent = mozjpegConfig.trellis_delta_dc_weight.toFixed(2);
+  }
+  document.querySelectorAll(".moz-lambda-manual").forEach((el) => {
+    el.classList.toggle("moz-lambda-disabled", isLambdaAuto);
+  });
+
+  updateMozjpegChromaMode();
   modalMoz.classList.add("show");
 });
 
 mozApply.addEventListener("click", () => {
   applyMozjpegConfig();
-  applyTuneSsimPreset(g("moz-tune-ssim").checked);
   modalMoz.classList.remove("show");
 });
 mozCancel.addEventListener("click", () => modalMoz.classList.remove("show"));

@@ -808,6 +808,7 @@ button:disabled {
   opacity: 0.4;
 }
 
+.moz-hidden,
 .jpegli-hidden {
   display: none;
 }
