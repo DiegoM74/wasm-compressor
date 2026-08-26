@@ -51,8 +51,8 @@ echo "========================================"
 cd "$BUILD_DIR"
 emcmake cmake "$JPEGLI_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_FLAGS_RELEASE="-Os -DNDEBUG" \
-    -DCMAKE_CXX_FLAGS_RELEASE="-Os -DNDEBUG" \
+    -DCMAKE_C_FLAGS_RELEASE="-O3 -msimd128 -DNDEBUG" \
+    -DCMAKE_CXX_FLAGS_RELEASE="-O3 -msimd128 -DNDEBUG" \
     -DBUILD_TESTING=OFF \
     -DJPEGLI_ENABLE_TOOLS=OFF \
     -DJPEGXL_ENABLE_TOOLS=OFF \
@@ -134,7 +134,8 @@ emcc src/jpegli-wrapper.cpp \
     -s FILESYSTEM=0 \
     -s ENVIRONMENT='web' \
     --closure 0 \
-    -Os \
+    -O3 \
+    -msimd128 \
     -DNDEBUG
 
 echo ""

@@ -2,45 +2,50 @@
 
 ## Resumen técnico
 
-Aplicación web client-side que comprime imágenes JPEG usando dos motores WASM en paralelo: MozJPEG (Mozilla, C) y Jpegli (Google, C++). Cada motor corre en su propio Web Worker. La UI permite comparar resultados A/B entre ambos motores y descargar el mejor. No hay backend: todo el procesamiento ocurre en el navegador. Los motores se compilan a WASM con Emscripten desde wrappers C/C++ que exponen una única función `compress_image` cada uno.
+Aplicación web client-side de alto rendimiento que comprime imágenes JPEG usando dos motores WASM en paralelo: MozJPEG (Mozilla, C) y Jpegli (Google, C++). Cada motor opera a través de un **Worker Pool** concurrente que distribuye el procesamiento en múltiples Web Workers aprovechando todos los núcleos del procesador (`navigator.hardwareConcurrency`). Ambos binarios WASM están compilados con optimización `-O3`, vectorización **WASM SIMD 128-bit (`-msimd128`)** y soporte vectorial nativo mediante **Google Highway (`hwy`)**. Los wrappers C/C++ utilizan una arquitectura de **streaming de scanlines por bloques** (16 líneas) para transferir datos directamente entre descompresión y compresión sin buffers intermedios gigantes en el heap. La UI permite comparar resultados A/B entre ambos motores y descargar el mejor. No hay backend: todo el procesamiento ocurre en el navegador.
 
 ---
 
 ## Arquitectura y flujo de datos
 
 ```
-Usuario sube JPEG
+Usuario sube imágenes JPEG
        │
        ▼
   main.js: handleFiles()
-  Lee archivo como ArrayBuffer, lo almacena en filesData[]
+  Lee archivos como ArrayBuffer, los almacena en filesData[]
        │
        ▼
   main.js: doCompression(mode)
-  Itera filesData[], hace .slice(0) del buffer (copia)
+  Despacha todas las imágenes concurrentemente vía Promise.all()
        │
-       ├──────────────────────────────┐
-       ▼                              ▼
-  compressImageMoz()             compressImageJpegli()
-  postMessage({imageBuffer, ...})  postMessage({imageBuffer, config})
-  [buffer transferido]             [buffer transferido]
-       │                              │
-       ▼                              ▼
-  mozjpeg/worker.js              jpegli/worker.js
-  - Valida JPEG magic bytes      - Valida JPEG magic bytes
-  - _malloc + copia a heap WASM  - _malloc + copia a heap WASM
-  - Llama _compress_image()      - Llama ccall("compress_image_jpegli")
-    (parámetros planos)            (parámetros via config object)
-  - Lee struct resultado         - Lee struct resultado
-    del heap (ptr@0, size@4)       del heap (ptr@0, size@4)
-  - .slice() del output          - .slice() del output
-  - postMessage({type:"done"})   - postMessage({type:"done"})
-  - [buffer transferido]         - [buffer transferido]
-       │                              │
-       └──────────────┬───────────────┘
-                      ▼
+       ├────────────────────────────────────────┐
+       ▼                                        ▼
+  mozPool.runTask(...)                     jpegliPool.runTask(...)
+  [Pool de N Workers MozJPEG]              [Pool de N Workers Jpegli]
+  Asigna al worker desocupado              Asigna al worker desocupado
+  postMessage({imageBuffer, ...})          postMessage({imageBuffer, config})
+  [buffer transferible .slice(0)]          [buffer transferible .slice(0)]
+       │                                        │
+       ▼                                        ▼
+  mozjpeg/worker.js                        jpegli/worker.js
+  - Valida JPEG magic bytes                - Valida JPEG magic bytes
+  - _malloc + copia a heap WASM            - _malloc + copia a heap WASM
+  - Llama _compress_image()                - Llama ccall("compress_image_jpegli")
+    (parámetros planos)                      (parámetros via config object)
+  - Wrapper C/C++: Streaming               - Wrapper C/C++: Streaming
+    por bloques (16 scanlines)               por bloques (16 scanlines)
+    de decodificador a codificador           de decodificador a codificador
+  - Lee struct resultado                   - Lee struct resultado
+    del heap (ptr@0, size@4)                 del heap (ptr@0, size@4)
+  - .slice() del output                    - .slice() del output
+  - postMessage({type:"done"})             - postMessage({type:"done"})
+  - [buffer transferido]                   - [buffer transferido]
+       │                                        │
+       └───────────────────┬────────────────────┘
+                           ▼
   main.js: compara tamaños, asigna bestBuffer/bestLib
-  Actualiza DOM con stats por imagen y totales
+  Actualización en tiempo real del DOM (progreso y stats)
        │
        ▼
   doDownload(): 1 archivo → descarga directa, N archivos → JSZip
@@ -48,12 +53,13 @@ Usuario sube JPEG
 
 ### Detalle WASM
 
-Ambos wrappers siguen el mismo patrón:
+Ambos wrappers siguen el mismo patrón optimizado de streaming:
 
-1. Reciben un buffer JPEG + parámetros de compresión.
-2. Decodifican el JPEG a pixeles RGB crudos en memoria (descompresión).
-3. Recomprimen los pixeles con los parámetros solicitados.
-4. Retornan un `CompressedResult*` (struct global estática con `{unsigned char* data, int size}`).
+1. Reciben el buffer JPEG de entrada y los parámetros de compresión.
+2. Inicializan simultáneamente la estructura de descompresión (`cinfo`) y la de compresión (`cinfo_out`).
+3. Configuran todos los parámetros y tablas de cuantización en el compresor.
+4. Procesan y transfieren los píxeles directamente en bloques de **16 scanlines** (`JSAMPROW row_pointers[16]`) desde `jpeg_read_scanlines()` a `jpeg_write_scanlines()`, eliminando por completo la necesidad de asignar un búfer RGB intermedio de la imagen completa en memoria y manteniendo los datos calientes en las memorias caché L1/L2 del procesador.
+5. Finalizan la compresión y retornan un `CompressedResult*` (struct global estática con `{unsigned char* data, int size}`).
 
 JS lee el struct directamente del heap WASM: offset 0 = puntero (4 bytes LE), offset 4 = tamaño (4 bytes LE). **Importante**: el heap debe releerse _después_ de la llamada a compress porque `ALLOW_MEMORY_GROWTH=1` puede invalidar las vistas anteriores.
 
@@ -91,10 +97,10 @@ Flujo interno:
 
 1. Verifica `emcc`. Si no existe, aborta con instrucciones.
 2. Clona `mozilla/mozjpeg` en `src/mozjpeg/` si no existe.
-3. Limpia `src/mozjpeg/build_wasm/`, corre `emcmake cmake` con flags: `ENABLE_STATIC=ON`, `WITH_SIMD=OFF`, `WITH_TURBOJPEG=OFF`, `CMAKE_C_FLAGS_RELEASE="-Os -DNDEBUG"`.
+3. Limpia `src/mozjpeg/build_wasm/`, corre `emcmake cmake` con flags: `ENABLE_STATIC=ON`, `WITH_SIMD=OFF`, `WITH_TURBOJPEG=OFF`, `CMAKE_C_FLAGS_RELEASE="-O3 -flto -msimd128 -DNDEBUG"`.
 4. **Parchea `jconfigint.h`**: fuerza `SIZEOF_SIZE_T` a 4 (wasm32). Sin este parche, la compilación puede fallar o producir binarios corruptos.
 5. `emmake make -j$(nproc)` → produce `libjpeg.a`.
-6. Compila el wrapper final: `emcc src/mozjpeg-wrapper.c + libjpeg.a → build/mozjpeg/encoder.{js,wasm}`.
+6. Compila el wrapper final: `emcc src/mozjpeg-wrapper.c + libjpeg.a → build/mozjpeg/encoder.{js,wasm}` con `-O3 -flto -msimd128`.
 7. Copia a `web/mozjpeg/`.
 
 ### Compilar Jpegli
@@ -106,29 +112,32 @@ bash build-jpegli.sh
 Flujo interno:
 
 1. Clona `google/jpegli` + submodules en `src/jpegli/` si no existe.
-2. `emcmake cmake` con flags para deshabilitar tools, benchmarks, JNI, etc.
-3. `emmake make -j$(nproc) jpegli-static hwy jpegli_cms jpegli_threads` — **builds only specific targets**, no `all`.
+2. `emcmake cmake` con flags para deshabilitar tools, benchmarks, JNI, etc., y flags de optimización vectorial `CMAKE_C_FLAGS_RELEASE="-O3 -msimd128 -DNDEBUG"` y `CMAKE_CXX_FLAGS_RELEASE="-O3 -msimd128 -DNDEBUG"`.
+3. `emmake make -j$(nproc) jpegli-static hwy jpegli_cms jpegli_threads` — **builds only specific targets**, no `all`. Google Highway compila con targets vectoriales `HWY_WASM_128`.
 4. Busca dinámicamente las `.a` generadas (`libjpegli-static.a`, `libhwy.a`, extras).
-5. Compila wrapper: `emcc src/jpegli-wrapper.cpp + [libs] → build/jpegli/encoder.{js,wasm}`.
+5. Compila wrapper: `emcc src/jpegli-wrapper.cpp + [libs] → build/jpegli/encoder.{js,wasm}` con `-O3 -msimd128`.
 6. Copia a `web/jpegli/`.
 
 ### Flags Emscripten comunes (ambos builds)
 
-| Flag                    | Valor  | Razón                                  |
-| ----------------------- | ------ | -------------------------------------- |
-| `WASM=1`                | —      | Generar WASM                           |
-| `ALLOW_MEMORY_GROWTH=1` | —      | Imágenes grandes necesitan más memoria |
-| `INITIAL_MEMORY`        | 128 MB | Evitar resize temprano                 |
-| `MAXIMUM_MEMORY`        | 512 MB | Límite de crecimiento                  |
-| `FILESYSTEM=0`          | —      | No hay FS, solo memoria                |
-| `ENVIRONMENT='web'`     | —      | Solo para navegador/worker             |
+| Flag                    | Valor        | Razón                                                    |
+| ----------------------- | ------------ | -------------------------------------------------------- |
+| `WASM=1`                | —            | Generar WASM                                             |
+| `-O3`                   | —            | Máxima optimización de compilador y desenrollado bucles |
+| `-msimd128`             | —            | Vectorización WebAssembly SIMD 128-bit (Highway / LLVM)  |
+| `ALLOW_MEMORY_GROWTH=1` | —            | Imágenes grandes necesitan más memoria                   |
+| `INITIAL_MEMORY`        | 128 MB       | Evitar resize temprano                                   |
+| `MAXIMUM_MEMORY`        | 512 MB       | Límite de crecimiento                                    |
+| `FILESYSTEM=0`          | —            | No hay FS, solo memoria                                  |
+| `ENVIRONMENT='web'`     | —            | Solo para navegador/worker                               |
 
 ### Diferencias entre builds
 
 |                      | MozJPEG                                                                       | Jpegli                                                                   |
 | -------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `EXPORTED_FUNCTIONS` | `_compress_image`, `_get_result_data`, `_get_result_size`, `_malloc`, `_free` | `_compress_image_jpegli`, `_free_result_data_jpegli`, `_malloc`, `_free` |
+| `EXPORTED_FUNCTIONS` | `_compress_image`, `_free_result_data`, `_malloc`, `_free`                     | `_compress_image_jpegli`, `_free_result_data_jpegli`, `_malloc`, `_free` |
 | `--closure`          | 1 (minificación agresiva)                                                     | 0 (deshabilitado — causaba errores)                                      |
+| `-flto`              | Habilitado (Link-Time Optimization)                                           | Deshabilitado (evita colisiones en plantillas Highway)                   |
 | Lenguaje wrapper     | C                                                                             | C++ (`extern "C"`)                                                       |
 
 ### Errores comunes
@@ -149,10 +158,17 @@ Flujo interno:
 - Jpegli: sufijo `_jpegli` en todo: `_compress_image_jpegli`, `_free_result_data_jpegli`.
 - Razón: evitar colisiones de símbolos si se linkean ambos en el mismo módulo futuro.
 
+### Concurrencia y Worker Pools
+
+- El frontend administra la concurrencia a través de la clase `WorkerPool` en `main.js`.
+- Se inicializa un pool para MozJPEG (`mozPool`) y otro para Jpegli (`jpegliPool`) con tamaño `Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 4))`.
+- La función `doCompression()` despacha todas las imágenes del lote en paralelo mediante `validFiles.map(...)` y `Promise.all()`. El pool asigna automáticamente cada tarea al siguiente worker desocupado, procesando múltiples imágenes simultáneamente sin bloquear la UI.
+
 ### Paso de parámetros al worker
 
 - **MozJPEG worker**: recibe parámetros como propiedades planas en `e.data` (destructuring directo). Los booleanos se convierten a `0/1` en `main.js` antes de enviar. Los floats se pasan como `int * 100` (convención `_x100`) para evitar problemas con el ABI de float en WASM; el wrapper C los divide por 100.
 - **Jpegli worker**: recibe un objeto `config` dentro de `e.data`. Usa `Module.ccall()` (en vez de `Module._compress_image_jpegli()`) porque necesita pasar un `float` (distance) que ccall convierte correctamente.
+- **Streaming de scanlines**: Dentro de los wrappers C/C++, la descompresión y compresión se ejecutan en franjas de 16 líneas (`MOZ_CHUNK_LINES 16` / `JPEGLI_CHUNK_LINES 16`), eliminando asignaciones intermedias completas de la imagen en el heap.
 
 ### Lectura de resultados del heap WASM
 

@@ -35,11 +35,9 @@ CompressedResult* compress_image_jpegli(
     g_result.data = NULL;
     g_result.size = 0;
 
-    // ── Decodificar JPEG de entrada con Jpegli ──────────────────────────────
+    // ── Inicializar decodificador con Jpegli ──────────────────────────────
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
-    unsigned char *buffer = NULL;
-    int stride;
 
     cinfo.err = jpegli_std_error(&jerr);
     jpegli_create_decompress(&cinfo);
@@ -52,23 +50,11 @@ CompressedResult* compress_image_jpegli(
 
     jpegli_start_decompress(&cinfo);
 
-    stride = cinfo.output_width * cinfo.output_components;
-    buffer = (unsigned char *)malloc(stride * cinfo.output_height);
-
-    while (cinfo.output_scanline < cinfo.output_height) {
-        unsigned char *row[1];
-        row[0] = buffer + cinfo.output_scanline * stride;
-        jpegli_read_scanlines(&cinfo, row, 1);
-    }
-
     int width      = cinfo.output_width;
     int height     = cinfo.output_height;
     int components = cinfo.output_components;
 
-    jpegli_finish_decompress(&cinfo);
-    jpegli_destroy_decompress(&cinfo);
-
-    // ── Codificar con Jpegli ────────────────────────────────────────────────
+    // ── Inicializar codificador con Jpegli ────────────────────────────────
     struct jpeg_compress_struct cinfo_out;
     struct jpeg_error_mgr jerr_out;
     unsigned char *out_buffer = NULL;
@@ -146,20 +132,43 @@ CompressedResult* compress_image_jpegli(
         // subsampling == 0 → 4:4:4 (ya es el default tras set_defaults)
     }
 
-    // ── Comprimir ──────────────────────────────────────────────────────────
+    // ── Iniciar compresión ────────────────────────────────────────────────
     jpegli_start_compress(&cinfo_out, TRUE);
 
-    stride = width * components;
-    while (cinfo_out.next_scanline < cinfo_out.image_height) {
-        unsigned char *row[1];
-        row[0] = buffer + cinfo_out.next_scanline * stride;
-        jpegli_write_scanlines(&cinfo_out, row, 1);
+    // ── Streaming de scanlines por bloques (elimina búfer RGB global) ──────
+    #define JPEGLI_CHUNK_LINES 16
+    int stride = width * components;
+    JSAMPROW row_pointers[JPEGLI_CHUNK_LINES];
+    unsigned char *chunk_buffer = (unsigned char *)malloc(stride * JPEGLI_CHUNK_LINES);
+    if (!chunk_buffer) {
+        jpegli_destroy_compress(&cinfo_out);
+        jpegli_destroy_decompress(&cinfo);
+        return &g_result;
     }
+
+    for (int i = 0; i < JPEGLI_CHUNK_LINES; i++) {
+        row_pointers[i] = chunk_buffer + i * stride;
+    }
+
+    while (cinfo_out.next_scanline < cinfo_out.image_height) {
+        JDIMENSION lines_to_read = JPEGLI_CHUNK_LINES;
+        if (cinfo.output_scanline + lines_to_read > cinfo.output_height) {
+            lines_to_read = cinfo.output_height - cinfo.output_scanline;
+        }
+
+        JDIMENSION lines_read = jpegli_read_scanlines(&cinfo, row_pointers, lines_to_read);
+        if (lines_read == 0) break;
+        jpegli_write_scanlines(&cinfo_out, row_pointers, lines_read);
+    }
+
+    free(chunk_buffer);
+    #undef JPEGLI_CHUNK_LINES
+
+    jpegli_finish_decompress(&cinfo);
+    jpegli_destroy_decompress(&cinfo);
 
     jpegli_finish_compress(&cinfo_out);
     jpegli_destroy_compress(&cinfo_out);
-
-    free(buffer);
 
     g_result.data = out_buffer;
     g_result.size = (int)out_size;

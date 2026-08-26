@@ -72,11 +72,9 @@ CompressedResult* compress_image(
     g_result.data = NULL;
     g_result.size = 0;
 
-    /* ── Decompress input JPEG ── */
+    /* ── Initialize decompressor ── */
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
-    unsigned char *buffer = NULL;
-    int stride;
 
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_decompress(&cinfo);
@@ -89,27 +87,11 @@ CompressedResult* compress_image(
 
     jpeg_start_decompress(&cinfo);
 
-    stride = cinfo.output_width * cinfo.output_components;
-    buffer = (unsigned char *)malloc(stride * cinfo.output_height);
-    if (!buffer) {
-        jpeg_destroy_decompress(&cinfo);
-        return &g_result;
-    }
-
-    while (cinfo.output_scanline < cinfo.output_height) {
-        unsigned char *row[1];
-        row[0] = buffer + cinfo.output_scanline * stride;
-        jpeg_read_scanlines(&cinfo, row, 1);
-    }
-
     int width      = cinfo.output_width;
     int height     = cinfo.output_height;
     int components = cinfo.output_components;
 
-    jpeg_finish_decompress(&cinfo);
-    jpeg_destroy_decompress(&cinfo);
-
-    /* ── Compress with MozJPEG ── */
+    /* ── Initialize MozJPEG compressor ── */
     struct jpeg_compress_struct cinfo_out;
     struct jpeg_error_mgr jerr_out;
     unsigned char *out_buffer = NULL;
@@ -197,17 +179,40 @@ CompressedResult* compress_image(
 
     jpeg_start_compress(&cinfo_out, TRUE);
 
-    stride = width * components;
-    while (cinfo_out.next_scanline < cinfo_out.image_height) {
-        unsigned char *row[1];
-        row[0] = buffer + cinfo_out.next_scanline * stride;
-        jpeg_write_scanlines(&cinfo_out, row, 1);
+    /* ── Streaming de scanlines por bloques (elimina búfer RGB global) ── */
+    #define MOZ_CHUNK_LINES 16
+    int stride = width * components;
+    JSAMPROW row_pointers[MOZ_CHUNK_LINES];
+    unsigned char *chunk_buffer = (unsigned char *)malloc(stride * MOZ_CHUNK_LINES);
+    if (!chunk_buffer) {
+        jpeg_destroy_compress(&cinfo_out);
+        jpeg_destroy_decompress(&cinfo);
+        return &g_result;
     }
+
+    for (int i = 0; i < MOZ_CHUNK_LINES; i++) {
+        row_pointers[i] = chunk_buffer + i * stride;
+    }
+
+    while (cinfo_out.next_scanline < cinfo_out.image_height) {
+        JDIMENSION lines_to_read = MOZ_CHUNK_LINES;
+        if (cinfo.output_scanline + lines_to_read > cinfo.output_height) {
+            lines_to_read = cinfo.output_height - cinfo.output_scanline;
+        }
+
+        JDIMENSION lines_read = jpeg_read_scanlines(&cinfo, row_pointers, lines_to_read);
+        if (lines_read == 0) break;
+        jpeg_write_scanlines(&cinfo_out, row_pointers, lines_read);
+    }
+
+    free(chunk_buffer);
+    #undef MOZ_CHUNK_LINES
+
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
 
     jpeg_finish_compress(&cinfo_out);
     jpeg_destroy_compress(&cinfo_out);
-
-    free(buffer);
 
     g_result.data = out_buffer;
     g_result.size = (int)out_size;

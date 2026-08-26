@@ -70,13 +70,15 @@ let jpegliConfig = {
 
 // ── Estado global ──
 let filesData = [];
-let workerMoz = null;
-let workerJpegli = null;
+let mozPool = null;
+let jpegliPool = null;
 let isCompressing = false;
 let isMozReady = false;
 let isJpegliReady = false;
 let mozHasError = false;
 let jpegliHasError = false;
+let lastMozTime = null;
+let lastJpegliTime = null;
 
 // ── Helpers de UI ──
 function updateStatus(text, type = "default") {
@@ -196,134 +198,159 @@ function updateTotalStats(validFiles) {
   let html = `<b>Total Original</b>: ${toMB(totalOriginal)} MB<br/>`;
   if (hasBest)
     html += `<b>General (Mejor)</b>: ${toMB(totalBest)} MB | <b>Ahorro</b>: ${toPct(totalBest)}%<br/>`;
-  if (hasMoz)
-    html += `<span style="color:var(--accent-secondary)">MozJPEG</span>: ${toMB(totalMoz)} MB | Ahorro: ${toPct(totalMoz)}%<br/>`;
-  if (hasJpegli)
-    html += `<span style="color:var(--accent-secondary)">Jpegli</span>: ${toMB(totalJpegli)} MB | Ahorro: ${toPct(totalJpegli)}%<br/>`;
+  if (hasMoz) {
+    const mozTimeStr = lastMozTime ? ` | Terminado en ${lastMozTime}s` : "";
+    html += `<span style="color:var(--accent-secondary)">MozJPEG</span>: ${toMB(totalMoz)} MB | Ahorro: ${toPct(totalMoz)}%${mozTimeStr}<br/>`;
+  }
+  if (hasJpegli) {
+    const jpegliTimeStr = lastJpegliTime ? ` | Terminado en ${lastJpegliTime}s` : "";
+    html += `<span style="color:var(--accent-secondary)">Jpegli</span>: ${toMB(totalJpegli)} MB | Ahorro: ${toPct(totalJpegli)}%${jpegliTimeStr}<br/>`;
+  }
 
   statsDiv.innerHTML = html;
 }
 
-// ── Workers ──
+// ── Arquitectura de Concurrencia: WorkerPool ──
+// Gestiona múltiples instancias de Web Workers por motor para procesar imágenes en
+// paralelo aprovechando los núcleos disponibles en navigator.hardwareConcurrency.
+class WorkerPool {
+  constructor(scriptUrl, size, onStatusChange) {
+    this.scriptUrl = scriptUrl;
+    this.size = size;
+    this.onStatusChange = onStatusChange;
+    this.workers = []; // { id, worker, busy: boolean }
+    this.queue = [];   // { message, transfer, resolve, reject }
+    this.readyCount = 0;
+    this.hasError = false;
+    this.init();
+  }
+
+  init() {
+    const v = Date.now();
+    for (let i = 0; i < this.size; i++) {
+      const worker = new Worker(`${this.scriptUrl}?v=${v}`);
+      const entry = { id: i, worker, busy: false };
+
+      worker.onmessage = (e) => {
+        if (e.data.type === "ready") {
+          this.readyCount++;
+          if (this.onStatusChange) this.onStatusChange();
+        } else if (e.data.type === "error" && !entry.busy) {
+          console.error(`Error de inicialización en worker (${this.scriptUrl}):`, e.data.message);
+          this.hasError = true;
+          if (this.onStatusChange) this.onStatusChange();
+        }
+      };
+
+      worker.onerror = (err) => {
+        console.error(`Error en worker (${this.scriptUrl}):`, err);
+        this.hasError = true;
+        if (this.onStatusChange) this.onStatusChange();
+      };
+
+      this.workers.push(entry);
+    }
+  }
+
+  isReady() {
+    return this.readyCount > 0;
+  }
+
+  runTask(message, transfer = []) {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ message, transfer, resolve, reject });
+      this.dispatch();
+    });
+  }
+
+  dispatch() {
+    if (this.queue.length === 0) return;
+    const available = this.workers.find((w) => !w.busy);
+    if (!available) return;
+
+    const task = this.queue.shift();
+    available.busy = true;
+
+    const handler = (e) => {
+      if (e.data.type !== "done" && e.data.type !== "error") return;
+      available.worker.removeEventListener("message", handler);
+      available.busy = false;
+
+      if (e.data.type === "done") {
+        task.resolve({
+          buffer: e.data.buffer,
+          originalSize: e.data.originalSize,
+          compressedSize: e.data.compressedSize,
+        });
+      } else {
+        task.reject(new Error(e.data.message));
+      }
+
+      // Procesar la siguiente tarea en la cola
+      this.dispatch();
+    };
+
+    available.worker.addEventListener("message", handler);
+    available.worker.postMessage(task.message, task.transfer);
+  }
+}
+
+// ── Inicialización de Pools de Workers ──
 function initWorkers() {
-  // Timestamp único para forzar recarga y evitar caché de service worker
-  const v = Date.now();
+  const POOL_SIZE = Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 4));
 
-  workerMoz = new Worker(`./mozjpeg/worker.js?v=${v}`);
-  workerMoz.onmessage = (e) => {
-    if (e.data.type === "ready") {
-      isMozReady = true;
-      updateUI();
-    } else if (e.data.type === "error") {
-      // Errores de inicialización llegan por mensaje, no por onerror
-      console.error("MozJPEG worker error:", e.data.message);
-      mozHasError = true;
-      updateUI();
-    }
-  };
-  workerMoz.onerror = (e) => {
-    console.error("MozJPEG worker error:", e);
-    mozHasError = true;
+  mozPool = new WorkerPool("./mozjpeg/worker.js", POOL_SIZE, () => {
+    isMozReady = mozPool.isReady();
+    mozHasError = mozPool.hasError;
     updateUI();
-  };
+  });
 
-  workerJpegli = new Worker(`./jpegli/worker.js?v=${v}`);
-  workerJpegli.onmessage = (e) => {
-    if (e.data.type === "ready") {
-      isJpegliReady = true;
-      updateUI();
-    } else if (e.data.type === "error") {
-      // Errores de inicialización llegan por mensaje, no por onerror
-      console.error("Jpegli worker error:", e.data.message);
-      jpegliHasError = true;
-      updateUI();
-    }
-  };
-  workerJpegli.onerror = (e) => {
-    console.error("Jpegli worker error:", e);
-    jpegliHasError = true;
+  jpegliPool = new WorkerPool("./jpegli/worker.js", POOL_SIZE, () => {
+    isJpegliReady = jpegliPool.isReady();
+    jpegliHasError = jpegliPool.hasError;
     updateUI();
-  };
+  });
 
   updateUI();
 }
 
-// ── Arquitectura de comunicación con Web Workers ──
-// Cada motor (MozJPEG y Jpegli) corre en su propio Web Worker para no bloquear
-// el hilo principal (UI). Se comunican mediante postMessage utilizando objetos
-// transferibles ([buffer]), lo cual transfiere la propiedad de la memoria en vez
-// de copiarla. Por esa razón, siempre se debe enviar una copia (.slice(0)) del
-// ArrayBuffer original cuando se invoca la compresión.
-// ── Compresión con MozJPEG ──
+// ── Compresión con MozJPEG vía WorkerPool ──
 function compressImageMoz(buffer) {
-  return new Promise((resolve, reject) => {
-    const cfg = mozjpegConfig;
-
-    const handler = (e) => {
-      if (e.data.type !== "done" && e.data.type !== "error") return;
-      workerMoz.removeEventListener("message", handler);
-      e.data.type === "done"
-        ? resolve({
-            buffer: e.data.buffer,
-            originalSize: e.data.originalSize,
-            compressedSize: e.data.compressedSize,
-          })
-        : reject(new Error(e.data.message));
-    };
-
-    workerMoz.addEventListener("message", handler);
-
-    workerMoz.postMessage(
-      {
-        imageBuffer: buffer,
-        quality: cfg.quality,
-        progressive: cfg.progressive ? 1 : 0,
-        optimize_coding: cfg.optimize_coding ? 1 : 0,
-        smoothing: cfg.smoothing,
-        chroma_subsample: cfg.chroma_subsample,
-        write_jfif: cfg.write_jfif ? 1 : 0,
-        trellis: cfg.trellis ? 1 : 0,
-        trellis_dc: cfg.trellis_dc ? 1 : 0,
-        trellis_eob_opt: cfg.trellis_eob_opt ? 1 : 0,
-        use_scans_in_trellis: cfg.use_scans_in_trellis ? 1 : 0,
-        trellis_q_opt: cfg.trellis_q_opt ? 1 : 0,
-        overshoot_deringing: cfg.overshoot_deringing ? 1 : 0,
-        optimize_scans: cfg.optimize_scans ? 1 : 0,
-        base_quant_tbl: cfg.base_quant_tbl,
-        trellis_freq_split: cfg.trellis_freq_split,
-        trellis_num_loops: cfg.trellis_num_loops,
-        dc_scan_opt_mode: cfg.dc_scan_opt_mode,
-        lambda_log_scale1: cfg.lambda_log_scale1,
-        lambda_log_scale2: cfg.lambda_log_scale2,
-        trellis_delta_dc_weight: cfg.trellis_delta_dc_weight,
-      },
-      [buffer], // transferable: evita copiar el ArrayBuffer
-    );
-  });
+  const cfg = mozjpegConfig;
+  return mozPool.runTask(
+    {
+      imageBuffer: buffer,
+      quality: cfg.quality,
+      progressive: cfg.progressive ? 1 : 0,
+      optimize_coding: cfg.optimize_coding ? 1 : 0,
+      smoothing: cfg.smoothing,
+      chroma_subsample: cfg.chroma_subsample,
+      write_jfif: cfg.write_jfif ? 1 : 0,
+      trellis: cfg.trellis ? 1 : 0,
+      trellis_dc: cfg.trellis_dc ? 1 : 0,
+      trellis_eob_opt: cfg.trellis_eob_opt ? 1 : 0,
+      use_scans_in_trellis: cfg.use_scans_in_trellis ? 1 : 0,
+      trellis_q_opt: cfg.trellis_q_opt ? 1 : 0,
+      overshoot_deringing: cfg.overshoot_deringing ? 1 : 0,
+      optimize_scans: cfg.optimize_scans ? 1 : 0,
+      base_quant_tbl: cfg.base_quant_tbl,
+      trellis_freq_split: cfg.trellis_freq_split,
+      trellis_num_loops: cfg.trellis_num_loops,
+      dc_scan_opt_mode: cfg.dc_scan_opt_mode,
+      lambda_log_scale1: cfg.lambda_log_scale1,
+      lambda_log_scale2: cfg.lambda_log_scale2,
+      trellis_delta_dc_weight: cfg.trellis_delta_dc_weight,
+    },
+    [buffer], // transferable: evita copiar el ArrayBuffer
+  );
 }
 
-// ── Compresión con Jpegli ──
+// ── Compresión con Jpegli vía WorkerPool ──
 function compressImageJpegli(buffer) {
-  return new Promise((resolve, reject) => {
-    const handler = (e) => {
-      if (e.data.type !== "done" && e.data.type !== "error") return;
-      workerJpegli.removeEventListener("message", handler);
-      e.data.type === "done"
-        ? resolve({
-            buffer: e.data.buffer,
-            originalSize: e.data.originalSize,
-            compressedSize: e.data.compressedSize,
-          })
-        : reject(new Error(e.data.message));
-    };
-
-    workerJpegli.addEventListener("message", handler);
-
-    workerJpegli.postMessage(
-      { imageBuffer: buffer, config: jpegliConfig },
-      [buffer], // transferable: evita copiar el ArrayBuffer
-    );
-  });
+  return jpegliPool.runTask(
+    { imageBuffer: buffer, config: jpegliConfig },
+    [buffer], // transferable: evita copiar el ArrayBuffer
+  );
 }
 
 // ── Manejo de archivos ──
@@ -527,84 +554,90 @@ function updateFileDOM(file) {
   }
 }
 
+// ── Helper para determinar mejor resultado ──
+function updateBestResult(f) {
+  f.bestSize = f.bestBuffer = f.bestLib = null;
+
+  if (f.mozjpegSize && f.jpegliSize) {
+    const jpegliWins = f.jpegliSize < f.mozjpegSize;
+    f.bestSize = jpegliWins ? f.jpegliSize : f.mozjpegSize;
+    f.bestBuffer = jpegliWins ? f.jpegliBuffer : f.mozjpegBuffer;
+    f.bestLib = jpegliWins ? "Jpegli" : "MozJPEG";
+  } else if (f.mozjpegSize) {
+    f.bestSize = f.mozjpegSize;
+    f.bestBuffer = f.mozjpegBuffer;
+    f.bestLib = "MozJPEG";
+  } else if (f.jpegliSize) {
+    f.bestSize = f.jpegliSize;
+    f.bestBuffer = f.jpegliBuffer;
+    f.bestLib = "Jpegli";
+  }
+}
+
 // ── Compresión ──
 async function doCompression(mode) {
   const validFiles = filesData.filter((f) => !f.isUnsupported);
   if (validFiles.length === 0) return;
 
   isCompressing = true;
+  if (mode === "general" || mode === "mozjpeg") lastMozTime = null;
+  if (mode === "general" || mode === "jpegli") lastJpegliTime = null;
   updateUI();
 
-  let successCount = 0;
+  const totalCount = validFiles.length;
+  updateStatus(`Comprimiendo ${totalCount} imágenes en paralelo...`, "warning");
 
-  for (let i = 0; i < validFiles.length; i++) {
-    const f = validFiles[i];
-    updateStatus(
-      `Comprimiendo (${i + 1}/${validFiles.length}): ${f.originalFile.name}...`,
-      "warning",
-    );
+  const startTime = performance.now();
 
-    try {
-      const mozPromise =
-        (mode === "mozjpeg" || mode === "general") && isMozReady
-          ? compressImageMoz(f.originalBuffer.slice(0))
-          : null;
+  const mozPromise =
+    (mode === "mozjpeg" || mode === "general") && isMozReady
+      ? Promise.allSettled(
+          validFiles.map(async (f) => {
+            try {
+              const res = await compressImageMoz(f.originalBuffer.slice(0));
+              f.mozjpegBuffer = res.buffer;
+              f.mozjpegSize = res.compressedSize;
+              updateBestResult(f);
+              updateFileDOM(f);
+              updateTotalStats(validFiles);
+              return res;
+            } catch (err) {
+              console.warn(`MozJPEG falló para "${f.originalFile.name}":`, err);
+              throw err;
+            }
+          }),
+        ).then(() => {
+          lastMozTime = ((performance.now() - startTime) / 1000).toFixed(2);
+          updateTotalStats(validFiles);
+        })
+      : Promise.resolve();
 
-      const jpegliPromise =
-        (mode === "jpegli" || mode === "general") && isJpegliReady
-          ? compressImageJpegli(f.originalBuffer.slice(0))
-          : null;
+  const jpegliPromise =
+    (mode === "jpegli" || mode === "general") && isJpegliReady
+      ? Promise.allSettled(
+          validFiles.map(async (f) => {
+            try {
+              const res = await compressImageJpegli(f.originalBuffer.slice(0));
+              f.jpegliBuffer = res.buffer;
+              f.jpegliSize = res.compressedSize;
+              updateBestResult(f);
+              updateFileDOM(f);
+              updateTotalStats(validFiles);
+              return res;
+            } catch (err) {
+              console.warn(`Jpegli falló para "${f.originalFile.name}":`, err);
+              throw err;
+            }
+          }),
+        ).then(() => {
+          lastJpegliTime = ((performance.now() - startTime) / 1000).toFixed(2);
+          updateTotalStats(validFiles);
+        })
+      : Promise.resolve();
 
-      const [mozRes, jpegliRes] = await Promise.allSettled([
-        mozPromise,
-        jpegliPromise,
-      ]);
+  await Promise.all([mozPromise, jpegliPromise]);
 
-      if (mozRes.status === "fulfilled" && mozRes.value) {
-        f.mozjpegBuffer = mozRes.value.buffer;
-        f.mozjpegSize = mozRes.value.compressedSize;
-      } else if (mozRes.status === "rejected") {
-        console.warn(
-          `MozJPEG falló para "${f.originalFile.name}":`,
-          mozRes.reason,
-        );
-      }
-
-      if (jpegliRes.status === "fulfilled" && jpegliRes.value) {
-        f.jpegliBuffer = jpegliRes.value.buffer;
-        f.jpegliSize = jpegliRes.value.compressedSize;
-      } else if (jpegliRes.status === "rejected") {
-        console.warn(
-          `Jpegli falló para "${f.originalFile.name}":`,
-          jpegliRes.reason,
-        );
-      }
-
-      // Determinar el mejor resultado disponible entre los obtenidos
-      f.bestSize = f.bestBuffer = f.bestLib = null;
-
-      if (f.mozjpegSize && f.jpegliSize) {
-        const jpegliWins = f.jpegliSize < f.mozjpegSize;
-        f.bestSize = jpegliWins ? f.jpegliSize : f.mozjpegSize;
-        f.bestBuffer = jpegliWins ? f.jpegliBuffer : f.mozjpegBuffer;
-        f.bestLib = jpegliWins ? "Jpegli" : "MozJPEG";
-      } else if (f.mozjpegSize) {
-        f.bestSize = f.mozjpegSize;
-        f.bestBuffer = f.mozjpegBuffer;
-        f.bestLib = "MozJPEG";
-      } else if (f.jpegliSize) {
-        f.bestSize = f.jpegliSize;
-        f.bestBuffer = f.jpegliBuffer;
-        f.bestLib = "Jpegli";
-      }
-
-      if (f.bestBuffer) successCount++;
-      updateFileDOM(f);
-    } catch (err) {
-      console.error(`Error comprimiendo "${f.originalFile.name}":`, err);
-    }
-  }
-
+  const successCount = validFiles.filter((f) => f.bestBuffer).length;
   isCompressing = false;
   updateUI();
 
@@ -728,6 +761,8 @@ clearAllBtn.addEventListener("click", () => {
     if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
   });
   filesData = [];
+  lastMozTime = null;
+  lastJpegliTime = null;
   renderList();
   updateUI();
   updateStatus("Esperando imágenes...", "default");

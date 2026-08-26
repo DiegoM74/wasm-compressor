@@ -61,7 +61,7 @@ emcmake cmake "$MOZJPEG_DIR" \
     -DWITH_TURBOJPEG=OFF \
     -DPNG_SUPPORTED=OFF \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_FLAGS_RELEASE="-Os -DNDEBUG"
+    -DCMAKE_C_FLAGS_RELEASE="-O3 -flto -msimd128 -DNDEBUG"
 
 JCONFIGINT="$BUILD_DIR/jconfigint.h"
 if [ ! -f "$JCONFIGINT" ]; then
@@ -126,7 +126,9 @@ emcc src/mozjpeg-wrapper.c \
     -s FILESYSTEM=0 \
     -s ENVIRONMENT='web' \
     --closure 1 \
-    -Os \
+    -O3 \
+    -flto \
+    -msimd128 \
     -DNDEBUG
 
 echo ""

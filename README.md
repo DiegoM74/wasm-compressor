@@ -13,6 +13,9 @@ La mayoría de herramientas de compresión de imágenes requieren instalar softw
 ## Características
 
 - **Privacidad total**: Las imágenes nunca salen del dispositivo. Todo el procesamiento ocurre en el navegador con WebAssembly.
+- **Aceleración WASM SIMD y Google Highway**: Binarios compilados a máxima optimización (`-O3`) con vectorización WebAssembly SIMD de 128-bit (`-msimd128`), aprovechando los kernels vectoriales nativos de Google Highway (`hwy`) y LLVM para transformadas DCT, cuantización y espacios de color.
+- **Worker Pools y procesamiento concurrente en lote**: Arquitectura multi-hilo que distribuye la compresión de lotes de imágenes en paralelo a través de pools dedicados de Web Workers dimensionados según los núcleos del CPU (`navigator.hardwareConcurrency`).
+- **Streaming de scanlines de bajo consumo de memoria**: Pipeline por bloques de 16 scanlines entre decodificación y compresión en C/C++, reduciendo el consumo de RAM intermedia a menos de 1 MB por imagen y maximizando la localidad en caché L1/L2.
 - **Dos motores en paralelo concurrente**: Comprime con MozJPEG y Jpegli de forma verdaderamente paralela en sus propios Web Workers independientes, reduciendo significativamente los tiempos de procesamiento y seleccionando automáticamente el mejor resultado.
 - **Configuración avanzada y Guía interactiva**: Modales dedicadas para ajustar todos los parámetros de compresión y guías interactivas para MozJPEG y Jpegli. Consulta explicaciones detalladas, pros/contras y valores recomendados con los botones (i) junto a cada control para saltar directo a su documentación.
 - **Comparación visual A/B**: Visor interactivo con slider, zoom y paneo para comparar Original vs MozJPEG vs Jpegli.
@@ -33,7 +36,7 @@ La mayoría de herramientas de compresión de imágenes requieren instalar softw
 
 ### Requisitos del sistema
 
-- Navegador web moderno con soporte para WebAssembly y Web Workers (Chrome, Firefox, Edge, Safari 15+).
+- Navegador web moderno con soporte para WebAssembly, WASM SIMD y Web Workers (Chrome 91+, Firefox 89+, Edge 91+, Safari 16.4+).
 - Archivos de entrada en formato JPEG.
 
 ## Motores de compresión
