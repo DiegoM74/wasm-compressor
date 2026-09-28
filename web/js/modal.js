@@ -79,13 +79,14 @@ function sliderGroup({
   const displayVal = divisor ? (value / divisor).toFixed(2) : String(value);
 
   const lbl = el("label");
-  lbl.append(
-    label,
-    " ",
+  const left = el("span", { class: "label-left" }, label);
+  const right = el(
+    "span",
+    { class: "label-right" },
+    el("span", { id: valueId, class: "slider-value" }, displayVal),
     helpIcon(help, id),
-    " ",
-    el("span", { id: valueId }, displayVal),
   );
+  lbl.append(left, right);
 
   const inputAttrs = {
     type: "range",
@@ -111,7 +112,8 @@ function checkboxGroup({ id, label, help, checked = false, extraClass = "" }) {
   const cb = el("input", { type: "checkbox", id });
   cb.checked = checked; // propiedad, no atributo, para evitar problemas con el estado actual vs default
   const lbl = el("label");
-  lbl.append(cb, " ", label, " ", helpIcon(help, id));
+  const left = el("span", { class: "label-left" }, cb, label);
+  lbl.append(left, helpIcon(help, id));
   return el(
     "div",
     { class: `form-group${extraClass ? " " + extraClass : ""}` },
@@ -122,7 +124,8 @@ function checkboxGroup({ id, label, help, checked = false, extraClass = "" }) {
 // Select con opciones
 function selectGroup({ id, label, help, options }) {
   const lbl = el("label");
-  lbl.append(label, " ", helpIcon(help, id));
+  const left = el("span", { class: "label-left" }, label);
+  lbl.append(left, helpIcon(help, id));
 
   const select = el("select", { id });
   for (const { value, text, selected } of options) {
@@ -153,7 +156,11 @@ function modalSubtitle() {
     el(
       "span",
       { class: "help-icon", style: "cursor:default; pointer-events:none;" },
-      el("svg", { class: "help-icon-svg" }, el("use", { href: "img/main.svg#infoIcon" })),
+      el(
+        "svg",
+        { class: "help-icon-svg" },
+        el("use", { href: "img/main.svg#infoIcon" }),
+      ),
     ),
     " de cualquier opción para ver su entrada en la guía.",
   );
@@ -696,26 +703,66 @@ function updateMozjpegChromaMode() {
 
 function applyMozjpegTunePreset(presetVal) {
   const preset = parseInt(presetVal, 10);
-  if (preset === 0) { // PSNR-HVS-M (MozJPEG default)
+  if (preset === 0) {
+    // PSNR-HVS-M (MozJPEG default)
     if (mozBaseQuantTbl) mozBaseQuantTbl.value = "3";
-    if (mozLambda1) { mozLambda1.value = "1475"; mozLambda1Val.textContent = "14.75"; }
-    if (mozLambda2) { mozLambda2.value = "1650"; mozLambda2Val.textContent = "16.50"; }
-    if (mozDeltaDc) { mozDeltaDc.value = "100"; mozDeltaDcVal.textContent = "1.00"; }
-  } else if (preset === 1) { // MS-SSIM
+    if (mozLambda1) {
+      mozLambda1.value = "1475";
+      mozLambda1Val.textContent = "14.75";
+    }
+    if (mozLambda2) {
+      mozLambda2.value = "1650";
+      mozLambda2Val.textContent = "16.50";
+    }
+    if (mozDeltaDc) {
+      mozDeltaDc.value = "100";
+      mozDeltaDcVal.textContent = "1.00";
+    }
+  } else if (preset === 1) {
+    // MS-SSIM
     if (mozBaseQuantTbl) mozBaseQuantTbl.value = "3";
-    if (mozLambda1) { mozLambda1.value = "1200"; mozLambda1Val.textContent = "12.00"; }
-    if (mozLambda2) { mozLambda2.value = "1300"; mozLambda2Val.textContent = "13.00"; }
-    if (mozDeltaDc) { mozDeltaDc.value = "100"; mozDeltaDcVal.textContent = "1.00"; }
-  } else if (preset === 2) { // SSIM
+    if (mozLambda1) {
+      mozLambda1.value = "1200";
+      mozLambda1Val.textContent = "12.00";
+    }
+    if (mozLambda2) {
+      mozLambda2.value = "1300";
+      mozLambda2Val.textContent = "13.00";
+    }
+    if (mozDeltaDc) {
+      mozDeltaDc.value = "100";
+      mozDeltaDcVal.textContent = "1.00";
+    }
+  } else if (preset === 2) {
+    // SSIM
     if (mozBaseQuantTbl) mozBaseQuantTbl.value = "1";
-    if (mozLambda1) { mozLambda1.value = "1150"; mozLambda1Val.textContent = "11.50"; }
-    if (mozLambda2) { mozLambda2.value = "1275"; mozLambda2Val.textContent = "12.75"; }
-    if (mozDeltaDc) { mozDeltaDc.value = "100"; mozDeltaDcVal.textContent = "1.00"; }
-  } else if (preset === 3) { // PSNR
+    if (mozLambda1) {
+      mozLambda1.value = "1150";
+      mozLambda1Val.textContent = "11.50";
+    }
+    if (mozLambda2) {
+      mozLambda2.value = "1275";
+      mozLambda2Val.textContent = "12.75";
+    }
+    if (mozDeltaDc) {
+      mozDeltaDc.value = "100";
+      mozDeltaDcVal.textContent = "1.00";
+    }
+  } else if (preset === 3) {
+    // PSNR
     if (mozBaseQuantTbl) mozBaseQuantTbl.value = "1";
-    if (mozLambda1) { mozLambda1.value = "900"; mozLambda1Val.textContent = "9.00"; }
-    if (mozLambda2) { mozLambda2.value = "0"; mozLambda2Val.textContent = "0.00"; }
-    if (mozDeltaDc) { mozDeltaDc.value = "100"; mozDeltaDcVal.textContent = "1.00"; }
+    if (mozLambda1) {
+      mozLambda1.value = "900";
+      mozLambda1Val.textContent = "9.00";
+    }
+    if (mozLambda2) {
+      mozLambda2.value = "0";
+      mozLambda2Val.textContent = "0.00";
+    }
+    if (mozDeltaDc) {
+      mozDeltaDc.value = "100";
+      mozDeltaDcVal.textContent = "1.00";
+    }
   }
 }
 
@@ -884,7 +931,8 @@ g("config-mozjpeg-btn").addEventListener("click", () => {
   }
   if (mozjpegConfig.trellis_delta_dc_weight != null) {
     mozDeltaDc.value = Math.round(mozjpegConfig.trellis_delta_dc_weight * 100);
-    mozDeltaDcVal.textContent = mozjpegConfig.trellis_delta_dc_weight.toFixed(2);
+    mozDeltaDcVal.textContent =
+      mozjpegConfig.trellis_delta_dc_weight.toFixed(2);
   }
   document.querySelectorAll(".moz-lambda-manual").forEach((el) => {
     el.classList.toggle("moz-lambda-disabled", isLambdaAuto);
@@ -954,3 +1002,16 @@ modalJpegli.addEventListener("click", (e) => {
 // ── Arranque ──
 initMozjpegModalListeners();
 initJpegliModalListeners();
+
+// ── Bloqueo de scroll cuando hay modales abiertas ──
+const modalScrollObserver = new MutationObserver(() => {
+  const isAnyModalOpen = !!document.querySelector(
+    ".modal.show, .compare-modal-overlay:not(.hidden)",
+  );
+  document.body.classList.toggle("modal-open", isAnyModalOpen);
+});
+modalScrollObserver.observe(document.body, {
+  subtree: true,
+  attributes: true,
+  attributeFilter: ["class"],
+});

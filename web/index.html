@@ -4,144 +4,285 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Compresor JPEG WASM</title>
+    <link rel="icon" type="image/x-icon" href="img/favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=2.8" />
-    <link rel="stylesheet" href="css/compare.css?v=2.8" />
+    <link rel="stylesheet" href="css/main.css?v=3.1" />
+    <link rel="stylesheet" href="css/compare.css?v=3.1" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <link rel="icon" type="image/x-icon" href="img/favicon.ico" />
   </head>
 
   <body>
-    <h1>Compresor JPEG WASM</h1>
-    <p class="subtitle">Compresión de imágenes en el navegador (serverless)</p>
-
-    <div class="lib-status-container">
-      <div id="status-mozjpeg" class="lib-status-pill">
-        <svg class="status-icon">
-          <use href="img/main.svg#refreshIcon"></use>
-        </svg>
-        <span>MozJPEG</span>
-      </div>
-
-      <div id="status-jpegli" class="lib-status-pill">
-        <svg class="status-icon">
-          <use href="img/main.svg#refreshIcon"></use>
-        </svg>
-        <span>Jpegli</span>
-      </div>
-    </div>
-
-    <div
-      id="drop-zone"
-      role="region"
-      aria-label="Área para arrastrar y soltar imágenes JPEG"
-      tabindex="0"
-    >
-      <div class="drop-text">Arrastra tus imágenes JPEG aquí</div>
-      <div class="drop-hint">
-        o haz clic para seleccionar (puedes elegir varias)
-      </div>
-      <input
-        type="file"
-        id="file-input"
-        accept="image/jpeg"
-        style="display: none"
-        multiple
-      />
-    </div>
-
-    <div
-      class="controls-group"
-      role="group"
-      aria-label="Controles de compresión y descarga"
-      aria-busy="false"
-    >
-      <div class="controls-main">
-        <div class="controls">
-          <button id="compress-btn" disabled>Comprimir</button>
-          <button id="download-btn" disabled>Descargar</button>
+    <main class="app-container">
+      <!-- Encabezado Principal -->
+      <header class="header">
+        <div class="header-badge">
+          <span>Compresión Paralela SIMD · Serverless</span>
         </div>
-      </div>
+        <h1 class="header-title">Compresor <span>JPEG WASM</span></h1>
+        <p class="header-subtitle">
+          Optimiza imágenes JPEG en paralelo aprovechando todos los núcleos de
+          tu procesador mediante WebAssembly y SIMD con MozJPEG y Jpegli.
+        </p>
 
-      <div class="controls-libs">
-        <div class="controls-lib">
-          <span class="lib-label">MozJPEG</span>
-          <button id="compress-mozjpeg-btn" disabled>Comprimir</button>
-          <button id="download-mozjpeg-btn" disabled>Descargar</button>
-          <div class="config-buttons-group">
-            <button
-              id="config-mozjpeg-btn"
-              class="config-btn"
-              title="Configurar MozJPEG"
-              aria-label="Configurar MozJPEG"
-            >
-              <svg class="config-icon">
-                <use href="img/main.svg#configIcon"></use>
-              </svg>
-            </button>
-            <button
-              id="guide-mozjpeg-btn"
-              class="config-btn"
-              title="Guía de opciones MozJPEG"
-              aria-label="Guía de opciones MozJPEG"
-            >
-              <svg class="config-icon">
-                <use href="img/main.svg#infoIcon"></use>
-              </svg>
+        <!-- Estado de Motores WASM (Pills) -->
+        <div class="lib-status-container">
+          <div id="status-mozjpeg" class="lib-status-pill">
+            <svg class="status-icon">
+              <use href="img/main.svg#refreshIcon"></use>
+            </svg>
+            <span>MozJPEG</span>
+          </div>
+
+          <div id="status-jpegli" class="lib-status-pill">
+            <svg class="status-icon">
+              <use href="img/main.svg#refreshIcon"></use>
+            </svg>
+            <span>Jpegli</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Tarjeta 1: Carga de Archivos -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg class="card-title-icon" width="20" height="20">
+            <use href="img/main.svg#imageIcon"></use>
+          </svg>
+          Imágenes JPEG
+        </h2>
+        <p class="card-subtitle">
+          Sube o arrastra las fotos que vas a procesar. El procesamiento se
+          realiza 100% en tu navegador de forma local y segura.
+        </p>
+
+        <!-- Zona Drag & Drop -->
+        <div
+          id="drop-zone"
+          class="dropzone"
+          role="region"
+          aria-label="Área para arrastrar y soltar imágenes JPEG"
+          tabindex="0"
+        >
+          <input
+            type="file"
+            id="file-input"
+            class="file-input-hidden"
+            accept="image/jpeg"
+            style="display: none"
+            multiple
+          />
+          <div class="dropzone-icon">
+            <svg width="28" height="28">
+              <use href="img/main.svg#uploadIcon"></use>
+            </svg>
+          </div>
+          <p class="dropzone-text drop-text">Arrastra tus imágenes JPEG aquí</p>
+          <p class="dropzone-subtext drop-hint">
+            o haz clic para seleccionar (puedes elegir varias fotos a la vez)
+          </p>
+        </div>
+      </section>
+
+      <!-- Tarjeta 2: Motores y Controles de Compresión -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg class="card-title-icon" width="20" height="20">
+            <use href="img/main.svg#tuneIcon"></use>
+          </svg>
+          Motores y Acciones
+        </h2>
+        <p class="card-subtitle">
+          Comprime con ambos motores en paralelo para seleccionar el archivo más
+          ligero, o gestiona cada motor de forma individual.
+        </p>
+
+        <div
+          class="controls-group"
+          role="group"
+          aria-label="Controles de compresión y descarga"
+          aria-busy="false"
+        >
+          <!-- Controles Principales A/B (General) -->
+          <div class="controls-main">
+            <div class="controls">
+              <button id="compress-btn" class="btn-primary" disabled>
+                <svg class="btn-icon" width="18" height="18">
+                  <use href="img/main.svg#compressActionIcon"></use>
+                </svg>
+                <span>Comprimir (Mejor Ahorro)</span>
+              </button>
+              <button id="download-btn" class="btn-secondary" disabled>
+                <svg class="btn-icon" width="18" height="18">
+                  <use href="img/main.svg#downloadIcon"></use>
+                </svg>
+                <span>Descargar Todo</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Grid de Tarjetas Independientes por Motor -->
+          <div class="engine-grid">
+            <!-- Motor MozJPEG -->
+            <div class="engine-card">
+              <div class="engine-card-header">
+                <span class="engine-title">MozJPEG</span>
+                <div class="config-buttons-group">
+                  <button
+                    id="config-mozjpeg-btn"
+                    class="config-btn"
+                    title="Configurar MozJPEG"
+                    aria-label="Configurar MozJPEG"
+                  >
+                    <svg class="config-icon">
+                      <use href="img/main.svg#configIcon"></use>
+                    </svg>
+                  </button>
+                  <button
+                    id="guide-mozjpeg-btn"
+                    class="config-btn"
+                    title="Guía de opciones MozJPEG"
+                    aria-label="Guía de opciones MozJPEG"
+                  >
+                    <svg class="config-icon">
+                      <use href="img/main.svg#infoIcon"></use>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="engine-card-actions">
+                <button
+                  id="compress-mozjpeg-btn"
+                  class="btn-secondary btn-sm"
+                  disabled
+                >
+                  Comprimir
+                </button>
+                <button
+                  id="download-mozjpeg-btn"
+                  class="btn-secondary btn-sm"
+                  disabled
+                >
+                  Descargar
+                </button>
+              </div>
+            </div>
+
+            <!-- Motor Jpegli -->
+            <div class="engine-card">
+              <div class="engine-card-header">
+                <span class="engine-title">Jpegli</span>
+                <div class="config-buttons-group">
+                  <button
+                    id="config-jpegli-btn"
+                    class="config-btn"
+                    title="Configurar Jpegli"
+                    aria-label="Configurar Jpegli"
+                  >
+                    <svg class="config-icon">
+                      <use href="img/main.svg#configIcon"></use>
+                    </svg>
+                  </button>
+                  <button
+                    id="guide-jpegli-btn"
+                    class="config-btn"
+                    title="Guía de opciones Jpegli"
+                    aria-label="Guía de opciones Jpegli"
+                  >
+                    <svg class="config-icon">
+                      <use href="img/main.svg#infoIcon"></use>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="engine-card-actions">
+                <button
+                  id="compress-jpegli-btn"
+                  class="btn-secondary btn-sm"
+                  disabled
+                >
+                  Comprimir
+                </button>
+                <button
+                  id="download-jpegli-btn"
+                  class="btn-secondary btn-sm"
+                  disabled
+                >
+                  Descargar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mensaje de Estado -->
+        <div
+          id="status"
+          class="info-banner"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          Esperando imágenes...
+        </div>
+      </section>
+
+      <!-- Tarjeta 3: Métricas y Ahorro Global -->
+      <section id="stats" class="card results-card"></section>
+
+      <!-- Tarjeta 4: Lista de Imágenes Procesadas -->
+      <section class="card list-card">
+        <div class="list-card-header">
+          <h2 class="card-title" style="margin-bottom: 0">
+            <svg class="card-title-icon" width="20" height="20">
+              <use href="img/main.svg#listIcon"></use>
+            </svg>
+            Imágenes Cargadas
+          </h2>
+          <div id="list-actions" class="list-actions">
+            <button id="clear-all-btn" class="btn-xs delete-all-btn">
+              Eliminar todas
             </button>
           </div>
         </div>
 
-        <div class="controls-lib">
-          <span class="lib-label">Jpegli</span>
-          <button id="compress-jpegli-btn" disabled>Comprimir</button>
-          <button id="download-jpegli-btn" disabled>Descargar</button>
-          <div class="config-buttons-group">
-            <button
-              id="config-jpegli-btn"
-              class="config-btn"
-              title="Configurar Jpegli"
-              aria-label="Configurar Jpegli"
-            >
-              <svg class="config-icon">
-                <use href="img/main.svg#configIcon"></use>
-              </svg>
-            </button>
-            <button
-              id="guide-jpegli-btn"
-              class="config-btn"
-              title="Guía de opciones Jpegli"
-              aria-label="Guía de opciones Jpegli"
-            >
-              <svg class="config-icon">
-                <use href="img/main.svg#infoIcon"></use>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+        <div
+          id="image-list"
+          class="image-list"
+          role="list"
+          aria-label="Lista de imágenes cargadas"
+        ></div>
+      </section>
 
-    <div id="status" role="status" aria-live="polite" aria-atomic="true">
-      Esperando imágenes...
-    </div>
+      <!-- Pie de Página -->
+      <footer class="footer">
+        <p>
+          © 2026 Kasnia Project · Compresión de imágenes client-side con
+          WebAssembly SIMD.
+        </p>
+        <p>
+          <a
+            href="https://github.com/DiegoM74/wasm-compressor"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="footer-github-link"
+          >
+            <svg class="footer-icon" width="18" height="18">
+              <use href="img/main.svg#githubIcon"></use>
+            </svg>
+            <span>Repositorio GitHub</span>
+          </a>
+        </p>
+      </footer>
+    </main>
 
-    <div id="stats"></div>
-
-    <div id="list-actions" class="list-actions">
-      <button id="clear-all-btn" class="delete-btn">
-        Eliminar todas las imágenes
-      </button>
-    </div>
-
-    <div id="image-list" role="list" aria-label="Lista de imágenes cargadas"></div>
-
-    <script src="js/main.js?v=2.8"></script>
-    <script src="js/modal.js?v=2.8"></script>
-    <script src="js/guide.js?v=2.8"></script>
-    <script src="js/compare.js?v=2.8"></script>
+    <script src="js/main.js?v=3.1"></script>
+    <script src="js/modal.js?v=3.1"></script>
+    <script src="js/guide.js?v=3.1"></script>
+    <script src="js/compare.js?v=3.1"></script>
   </body>
 </html>
