@@ -32,9 +32,10 @@ if [ ! -f "$JPEGLI_DIR/CMakeLists.txt" ]; then
     mkdir -p "$PROJECT_DIR/src"
     cd "$PROJECT_DIR/src"
     rm -rf jpegli
-    git clone https://github.com/google/jpegli.git jpegli
+    git clone --depth 1 https://github.com/google/jpegli.git jpegli
     cd jpegli
-    git submodule update --init --recursive
+    # Solo inicializar los submódulos estrictamente necesarios (--depth 1 para evitar descargar historial y ~130MB innecesarios)
+    git submodule update --init --depth 1 third_party/highway third_party/libjpeg-turbo third_party/lcms
 fi
 
 echo ""
@@ -55,19 +56,21 @@ emcmake cmake "$JPEGLI_DIR" \
     -DCMAKE_CXX_FLAGS_RELEASE="-O3 -msimd128 -DNDEBUG" \
     -DBUILD_TESTING=OFF \
     -DJPEGLI_ENABLE_TOOLS=OFF \
-    -DJPEGXL_ENABLE_TOOLS=OFF \
     -DJPEGLI_ENABLE_BENCHMARK=OFF \
-    -DJPEGXL_ENABLE_BENCHMARK=OFF \
-    -DJPEGLI_ENABLE_EXAMPLES=OFF \
-    -DJPEGXL_ENABLE_EXAMPLES=OFF \
     -DJPEGLI_ENABLE_JNI=OFF \
-    -DJPEGXL_ENABLE_JNI=OFF
+    -DJPEGLI_ENABLE_DOXYGEN=OFF \
+    -DJPEGLI_ENABLE_MANPAGES=OFF \
+    -DJPEGLI_BUNDLE_LIBPNG=OFF \
+    -DJPEGLI_ENABLE_SJPEG=OFF \
+    -DJPEGLI_ENABLE_OPENEXR=OFF \
+    -DJPEGLI_ENABLE_WASM_THREADS=OFF
 
 echo ""
 echo "========================================"
 echo " Compilando librerias..."
 echo "========================================"
-emmake make -j$(nproc) jpegli-static hwy jpegli_cms jpegli_threads
+# Compilar únicamente las librerías necesarias para el wrapper (jpegli-static y hwy)
+emmake make -j$(nproc) jpegli-static hwy
 
 echo ""
 echo "========================================"
@@ -93,14 +96,6 @@ if [ -n "$HWY_LIB" ]; then
     LINK_LIBS="$LINK_LIBS $HWY_LIB"
 fi
 
-for extra_lib in "libjpegli_threads.a" "libjpegli_cms.a" "libjxl_threads.a" "libjxl_cms.a" "libcms.a"; do
-    FOUND_EXTRA=$(find "$BUILD_DIR" -name "$extra_lib" | head -n 1)
-    if [ -n "$FOUND_EXTRA" ]; then
-        echo "  OK Extra lib: $(basename $FOUND_EXTRA)"
-        LINK_LIBS="$LINK_LIBS $FOUND_EXTRA"
-    fi
-done
-
 echo ""
 echo "========================================"
 echo " Compilando el wrapper WASM final..."
@@ -115,7 +110,7 @@ cd "$PROJECT_DIR"
 INITIAL_MEM=134217728
 MAX_MEM=536870912
 
-emcc src/jpegli-wrapper.cpp \
+em++ src/jpegli-wrapper.cpp \
     -I src/jpegli \
     -I src/jpegli/lib \
     -I src/jpegli/include \

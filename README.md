@@ -114,9 +114,8 @@ wasm-compressor/
 - [x] Integración de MozJPEG y Jpegli con configuración avanzada de parámetros.
 - [x] Visor de comparación A/B con zoom y slider.
 - [x] Soporte de múltiples imágenes y descarga en ZIP.
-- [ ] Soporte para formatos de entrada adicionales (PNG, WebP) con conversión automática a JPEG.
+- [ ] Soporte para formatos de entrada adicionales (PNG, WebP).
 - [ ] Integración de un tercer motor: AVIF (libavif) para compresión de próxima generación.
-- [ ] Modo offline completo (bundlear JSZip localmente).
 - [ ] Presets de configuración guardables (ej: "web optimizado", "alta calidad", "máxima compresión").
 
 ## Tecnologías

@@ -32,7 +32,7 @@ if [ ! -f "$MOZJPEG_DIR/CMakeLists.txt" ]; then
     mkdir -p "$PROJECT_DIR/src"
     cd "$PROJECT_DIR/src"
     rm -rf mozjpeg
-    git clone https://github.com/mozilla/mozjpeg.git mozjpeg
+    git clone --depth 1 https://github.com/mozilla/mozjpeg.git mozjpeg
     cd mozjpeg
 else
     echo "MozJPEG ya existe en $MOZJPEG_DIR"
@@ -55,6 +55,7 @@ echo " Configurando con emcmake cmake..."
 echo "========================================"
 cd "$BUILD_DIR"
 emcmake cmake "$MOZJPEG_DIR" \
+    -DBUILD_SHARED_LIBS=OFF \
     -DENABLE_STATIC=ON \
     -DENABLE_SHARED=OFF \
     -DWITH_SIMD=OFF \
@@ -77,7 +78,7 @@ echo ""
 echo "========================================"
 echo " Compilando..."
 echo "========================================"
-emmake make -j$(nproc)
+emmake make -j$(nproc) jpeg-static
 
 echo ""
 echo "========================================"

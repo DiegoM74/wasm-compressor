@@ -97,9 +97,9 @@ Flujo interno:
 
 1. Verifica `emcc`. Si no existe, aborta con instrucciones.
 2. Clona `mozilla/mozjpeg` en `src/mozjpeg/` si no existe.
-3. Limpia `src/mozjpeg/build_wasm/`, corre `emcmake cmake` con flags: `ENABLE_STATIC=ON`, `WITH_SIMD=OFF`, `WITH_TURBOJPEG=OFF`, `CMAKE_C_FLAGS_RELEASE="-O3 -flto -msimd128 -DNDEBUG"`.
+3. Limpia `src/mozjpeg/build_wasm/`, corre `emcmake cmake` con flags: `BUILD_SHARED_LIBS=OFF`, `ENABLE_STATIC=ON`, `WITH_SIMD=OFF`, `WITH_TURBOJPEG=OFF`, `CMAKE_C_FLAGS_RELEASE="-O3 -flto -msimd128 -DNDEBUG"`.
 4. **Parchea `jconfigint.h`**: fuerza `SIZEOF_SIZE_T` a 4 (wasm32). Sin este parche, la compilación puede fallar o producir binarios corruptos.
-5. `emmake make -j$(nproc)` → produce `libjpeg.a`.
+5. `emmake make -j$(nproc) jpeg-static` → produce `libjpeg.a`.
 6. Compila el wrapper final: `emcc src/mozjpeg-wrapper.c + libjpeg.a → build/mozjpeg/encoder.{js,wasm}` con `-O3 -flto -msimd128`.
 7. Copia a `web/mozjpeg/`.
 
@@ -113,9 +113,9 @@ Flujo interno:
 
 1. Clona `google/jpegli` + submodules en `src/jpegli/` si no existe.
 2. `emcmake cmake` con flags para deshabilitar tools, benchmarks, JNI, etc., y flags de optimización vectorial `CMAKE_C_FLAGS_RELEASE="-O3 -msimd128 -DNDEBUG"` y `CMAKE_CXX_FLAGS_RELEASE="-O3 -msimd128 -DNDEBUG"`.
-3. `emmake make -j$(nproc) jpegli-static hwy jpegli_cms jpegli_threads` — **builds only specific targets**, no `all`. Google Highway compila con targets vectoriales `HWY_WASM_128`.
-4. Busca dinámicamente las `.a` generadas (`libjpegli-static.a`, `libhwy.a`, extras).
-5. Compila wrapper: `emcc src/jpegli-wrapper.cpp + [libs] → build/jpegli/encoder.{js,wasm}` con `-O3 -msimd128`.
+3. `emmake make -j$(nproc) jpegli-static hwy` — **compila únicamente los targets requeridos** por el wrapper (`libjpegli-static.a` y `libhwy.a`). Google Highway compila con targets vectoriales `HWY_WASM_128`.
+4. Busca dinámicamente las `.a` generadas (`libjpegli-static.a`, `libhwy.a`).
+5. Compila wrapper: `em++ src/jpegli-wrapper.cpp + [libs] → build/jpegli/encoder.{js,wasm}` con `-O3 -msimd128`.
 6. Copia a `web/jpegli/`.
 
 ### Flags Emscripten comunes (ambos builds)
