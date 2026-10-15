@@ -5,7 +5,7 @@
 
 set -e # Detener si hay error
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MOZJPEG_DIR="$PROJECT_DIR/src/mozjpeg"
 BUILD_DIR="$MOZJPEG_DIR/build_wasm"
 BUILD_OUT="$PROJECT_DIR/build"
@@ -23,7 +23,7 @@ if ! command -v emcc &> /dev/null; then
 fi
 
 echo "Emscripten: $(emcc --version 2>&1 | head -1)"
-mkdir -p "$BUILD_OUT/mozjpeg" "$WEB_DIR/mozjpeg"
+mkdir -p "$BUILD_OUT/mozjpeg" "$WEB_DIR/engines/mozjpeg"
 
 # Verificar que el repo de mozjpeg existe
 if [ ! -f "$MOZJPEG_DIR/CMakeLists.txt" ]; then
@@ -143,8 +143,8 @@ if [ -f "$BUILD_OUT/mozjpeg/encoder.js" ] && [ -f "$BUILD_OUT/mozjpeg/encoder.wa
     
     echo ""
     echo "Copiando archivos a la carpeta web..."
-    cp "$BUILD_OUT/mozjpeg/encoder.js" "$WEB_DIR/mozjpeg/"
-    cp "$BUILD_OUT/mozjpeg/encoder.wasm" "$WEB_DIR/mozjpeg/"
+    cp "$BUILD_OUT/mozjpeg/encoder.js" "$WEB_DIR/engines/mozjpeg/"
+    cp "$BUILD_OUT/mozjpeg/encoder.wasm" "$WEB_DIR/engines/mozjpeg/"
     echo "¡Archivos copiados con éxito!"
 else
     echo " ERROR: No se generaron los archivos de salida."

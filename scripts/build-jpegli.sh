@@ -5,7 +5,7 @@
 
 set -e  # Detener si hay error
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 JPEGLI_DIR="$PROJECT_DIR/src/jpegli"
 BUILD_DIR="$JPEGLI_DIR/build_wasm"
 BUILD_OUT="$PROJECT_DIR/build"
@@ -23,7 +23,7 @@ if ! command -v emcc &> /dev/null; then
 fi
 
 echo "Emscripten: $(emcc --version 2>&1 | head -1)"
-mkdir -p "$BUILD_OUT/jpegli" "$WEB_DIR/jpegli"
+mkdir -p "$BUILD_OUT/jpegli" "$WEB_DIR/engines/jpegli"
 
 # Verificar si el repo de jpegli existe y si apunta al repo correcto
 if [ ! -f "$JPEGLI_DIR/CMakeLists.txt" ]; then
@@ -144,8 +144,8 @@ if [ -f "$BUILD_OUT/jpegli/encoder.js" ] && [ -f "$BUILD_OUT/jpegli/encoder.wasm
 
     echo ""
     echo "Copiando archivos a la carpeta web..."
-    cp "$BUILD_OUT/jpegli/encoder.js" "$WEB_DIR/jpegli/"
-    cp "$BUILD_OUT/jpegli/encoder.wasm" "$WEB_DIR/jpegli/"
+    cp "$BUILD_OUT/jpegli/encoder.js" "$WEB_DIR/engines/jpegli/"
+    cp "$BUILD_OUT/jpegli/encoder.wasm" "$WEB_DIR/engines/jpegli/"
     echo "¡Archivos copiados con éxito!"
 else
     echo " ERROR: No se generaron los archivos de salida."

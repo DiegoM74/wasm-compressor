@@ -28,7 +28,7 @@ Usuario sube imágenes JPEG
   [buffer transferible .slice(0)]          [buffer transferible .slice(0)]
        │                                        │
        ▼                                        ▼
-  mozjpeg/worker.js                        jpegli/worker.js
+  engines/mozjpeg/worker.js                engines/jpegli/worker.js
   - Valida JPEG magic bytes                - Valida JPEG magic bytes
   - _malloc + copia a heap WASM            - _malloc + copia a heap WASM
   - Llama _compress_image()                - Llama ccall("compress_image_jpegli")
@@ -68,13 +68,12 @@ JS lee el struct directamente del heap WASM: offset 0 = puntero (4 bytes LE), of
 ## Mapa de archivos clave (por tarea)
 
 | Tarea                                              | Archivos a tocar (en orden)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agregar un parámetro de compresión MozJPEG**     | 1. `src/mozjpeg-wrapper.c` — agregar argumento a `compress_image()` y usarlo en la lógica de compresión. 2. `build-mozjpeg.sh` — agregar al array `EXPORTED_FUNCTIONS` si es nueva función (no aplica para parámetros existentes). 3. `web/mozjpeg/worker.js` — agregar el parámetro a los defaults, extraerlo de `e.data` y pasarlo a `_compress_image()`. 4. `web/js/main.js` — agregar a `mozjpegConfig` y enviarlo en `compressImageMoz()` → `postMessage()`. 5. `web/js/modal.js` — agregar control UI en `buildMozjpegModal()` y leer/escribir en `applyMozjpegConfig()`. 6. `web/js/guide.js` — agregar entrada con descripción, pros/contras y ajuste recomendado en `mozjpegGuideData`. 7. Recompilar con `bash build-mozjpeg.sh`. |
-| **Agregar un parámetro de compresión Jpegli**      | 1. `src/jpegli-wrapper.cpp` — agregar argumento a `compress_image_jpegli()`. 2. `web/jpegli/worker.js` — agregar al array de tipos en `ccall()` y al array de valores (leer de `config`). 3. `web/js/main.js` — agregar a `jpegliConfig`. 4. `web/js/modal.js` — agregar control UI en `buildJpegliModal()` y leer/escribir en el listener de `jpegliApply`. 5. `web/js/guide.js` — agregar entrada con descripción, pros/contras y ajuste recomendado en `jpegliGuideData`. 6. Recompilar con `bash build-jpegli.sh`.                                                                                                                                                                                                                     |
+| -------------------------------------------------- | -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| **Agregar un parámetro de compresión MozJPEG**     | 1. `src/mozjpeg-wrapper.c` — agregar argumento a `compress_image()` y usarlo en la lógica de compresión. 2. `scripts/build-mozjpeg.sh` — agregar al array `EXPORTED_FUNCTIONS` si es nueva función (no aplica para parámetros existentes). 3. `web/engines/mozjpeg/worker.js` — agregar el parámetro a los defaults, extraerlo de `e.data` y pasarlo a `_compress_image()`. 4. `web/js/main.js` — agregar a `mozjpegConfig` y enviarlo en `compressImageMoz()` → `postMessage()`. 5. `web/js/modal.js` — agregar control UI en `buildMozjpegModal()` y leer/escribir en `applyMozjpegConfig()`. 6. `web/js/guide.js` — agregar entrada con descripción, pros/contras y ajuste recomendado en `mozjpegGuideData`. 7. Recompilar con `bash scripts/build-mozjpeg.sh`. |
+| **Agregar un parámetro de compresión Jpegli**      | 1. `src/jpegli-wrapper.cpp` — agregar argumento a `compress_image_jpegli()`. 2. `web/engines/jpegli/worker.js` — agregar al array de tipos en `ccall()` y al array de valores (leer de `config`). 3. `web/js/main.js` — agregar a `jpegliConfig`. 4. `web/js/modal.js` — agregar control UI en `buildJpegliModal()` y leer/escribir en el listener de `jpegliApply`. 5. `web/js/guide.js` — agregar entrada con descripción, pros/contras y ajuste recomendado en `jpegliGuideData`. 6. Recompilar con `bash scripts/build-jpegli.sh`.                                                                                                                                                                                                                     |
 | **Modificar UI/estilos**                           | `web/index.html`, `web/css/main.css`, `web/css/compare.css`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | **Cambiar la lógica de comparación visual**        | `web/js/compare.js` — slider, zoom, paneo. `web/css/compare.css` — estilos del modal.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | **Cambiar cómo se determina el "mejor" resultado** | `web/js/main.js` — buscar bloque `if (f.mozjpegSize && f.jpegliSize)` en `doCompression()`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Agregar un nuevo motor de compresión**           | Crear `src/nuevo-wrapper.c`, `build-nuevo.sh`, `web/nuevo/worker.js`, y replicar el patrón de integración en `main.js` (nuevo worker, nuevo config, nuevos botones).                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Agregar un nuevo motor de compresión**           | Crear `src/nuevo-wrapper.c`, `scripts/build-nuevo.sh`, `web/engines/nuevo/worker.js`, y replicar el patrón de integración en `main.js` (nuevo worker, nuevo config, nuevos botones).                                                                                                                                                                                                                                                                                                                                                                                                                        |                                                                                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -90,7 +89,7 @@ JS lee el struct directamente del heap WASM: offset 0 = puntero (4 bytes LE), of
 ### Compilar MozJPEG
 
 ```bash
-bash build-mozjpeg.sh
+bash scripts/build-mozjpeg.sh
 ```
 
 Flujo interno:
@@ -101,12 +100,12 @@ Flujo interno:
 4. **Parchea `jconfigint.h`**: fuerza `SIZEOF_SIZE_T` a 4 (wasm32). Sin este parche, la compilación puede fallar o producir binarios corruptos.
 5. `emmake make -j$(nproc) jpeg-static` → produce `libjpeg.a`.
 6. Compila el wrapper final: `emcc src/mozjpeg-wrapper.c + libjpeg.a → build/mozjpeg/encoder.{js,wasm}` con `-O3 -flto -msimd128`.
-7. Copia a `web/mozjpeg/`.
+7. Copia a `web/engines/mozjpeg/`.
 
 ### Compilar Jpegli
 
 ```bash
-bash build-jpegli.sh
+bash scripts/build-jpegli.sh
 ```
 
 Flujo interno:
@@ -116,7 +115,7 @@ Flujo interno:
 3. `emmake make -j$(nproc) jpegli-static hwy` — **compila únicamente los targets requeridos** por el wrapper (`libjpegli-static.a` y `libhwy.a`). Google Highway compila con targets vectoriales `HWY_WASM_128`.
 4. Busca dinámicamente las `.a` generadas (`libjpegli-static.a`, `libhwy.a`).
 5. Compila wrapper: `em++ src/jpegli-wrapper.cpp + [libs] → build/jpegli/encoder.{js,wasm}` con `-O3 -msimd128`.
-6. Copia a `web/jpegli/`.
+6. Copia a `web/engines/jpegli/`.
 
 ### Flags Emscripten comunes (ambos builds)
 
@@ -213,7 +212,7 @@ Ambos workers leen el `CompressedResult` struct mediante la función auxiliar es
 
 6. **Struct global estática**: Ambos wrappers usan una variable global `g_result` para retornar el resultado. Esto significa que **no son thread-safe**. Sin embargo, como cada motor corre en su propio Worker (un solo hilo por módulo WASM), no hay conflicto actual. No intentar llamar a `compress_image` en paralelo dentro del mismo Worker.
 
-7. **Archivos WASM en web/ son copias de build/**: Los scripts de build copian automáticamente `build/*/encoder.{js,wasm}` a `web/*/`. No editar los archivos en `web/mozjpeg/encoder.*` o `web/jpegli/encoder.*` directamente — se sobreescriben en cada build.
+7. **Archivos WASM en web/ son copias de build/**: Los scripts de build copian automáticamente `build/*/encoder.{js,wasm}` a `web/engines/*/`. No editar los archivos en `web/engines/mozjpeg/encoder.*` o `web/engines/jpegli/encoder.*` directamente — se sobreescriben en cada build.
 
 8. **JSZip cargado desde CDN**: `jszip.min.js` se carga desde cdnjs. Si necesitas offline, hay que descargarlo a `web/`.
 
@@ -232,24 +231,24 @@ Ambos workers leen el `CompressedResult` struct mediante la función auxiliar es
 - `web/js/main.js` → Cambiar validación en `handleFiles()`: aceptar `image/png` además de `image/jpeg`. Convertir PNG a pixeles RGB (usando Canvas 2D API: crear `<img>`, dibujar en canvas, obtener `ImageData`) antes de enviarlo al worker, ya que los wrappers WASM esperan un buffer JPEG como entrada. **Alternativa**: modificar los wrappers C/C++ para aceptar raw RGB + dimensiones directamente (evitar re-decode).
 - `web/index.html` → Actualizar `accept="image/jpeg"` en el file input.
 - `src/mozjpeg-wrapper.c` y/o `src/jpegli-wrapper.cpp` → Si se opta por pasar raw RGB, crear una nueva función o agregar parámetros `width`, `height`, `components` y saltar el paso de decodificación.
-- `web/mozjpeg/worker.js` y `web/jpegli/worker.js` → Cambiar validación de magic bytes. Si se pasan pixeles crudos, cambiar el mensaje para incluir dimensiones.
+- `web/engines/mozjpeg/worker.js` y `web/engines/jpegli/worker.js` → Cambiar validación de magic bytes. Si se pasan pixeles crudos, cambiar el mensaje para incluir dimensiones.
 
 ### 2. Exponer un nuevo flag de Jpegli (ej: `jpegli_set_psnr_target`)
 
 **Archivos a tocar (en este orden exacto):**
 
 1. `src/jpegli-wrapper.cpp` — Agregar parámetro a la firma de `compress_image_jpegli()`. Llamar a la función Jpegli correspondiente en el lugar correcto (antes o después de `set_defaults` según la API).
-2. `build-jpegli.sh` — Solo si se exporta una nueva función (no aplica para agregar un parámetro a la función existente).
-3. `web/jpegli/worker.js` — Agregar el tipo (`"number"`) al array de tipos de `ccall()` y el valor (`config.nuevo_param`) al array de valores. Mantener el orden exacto de la firma C++.
+2. `scripts/build-jpegli.sh` — Solo si se exporta una nueva función (no aplica para agregar un parámetro a la función existente).
+3. `web/engines/jpegli/worker.js` — Agregar el tipo (`"number"`) al array de tipos de `ccall()` y el valor (`config.nuevo_param`) al array de valores. Mantener el orden exacto de la firma C++.
 4. `web/js/main.js` — Agregar valor default a `jpegliConfig`.
 5. `web/js/modal.js` — Agregar control en `buildJpegliModal()` y leer/escribir en el listener de `jpegliApply`.
-6. Recompilar: `bash build-jpegli.sh`.
+6. Recompilar: `bash scripts/build-jpegli.sh`.
 
 ### 3. Cambiar la memoria WASM (ej: soportar imágenes más grandes)
 
 **Archivos a tocar:**
 
-- `build-mozjpeg.sh` → Modificar `-s INITIAL_MEMORY=...` y `-s MAXIMUM_MEMORY=...`.
-- `build-jpegli.sh` → Ídem.
+- `scripts/build-mozjpeg.sh` → Modificar `-s INITIAL_MEMORY=...` y `-s MAXIMUM_MEMORY=...`.
+- `scripts/build-jpegli.sh` → Ídem.
 - Recompilar ambos motores.
 - Nota: `MAXIMUM_MEMORY` no puede exceder 2 GB en wasm32. Para 4 GB necesitarías wasm64 (no soportado en navegadores actualmente).

@@ -307,13 +307,13 @@ class WorkerPool {
 function initWorkers() {
   const POOL_SIZE = Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 4));
 
-  mozPool = new WorkerPool("./mozjpeg/worker.js", POOL_SIZE, () => {
+  mozPool = new WorkerPool("./engines/mozjpeg/worker.js", POOL_SIZE, () => {
     isMozReady = mozPool.isReady();
     mozHasError = mozPool.hasError;
     updateUI();
   });
 
-  jpegliPool = new WorkerPool("./jpegli/worker.js", POOL_SIZE, () => {
+  jpegliPool = new WorkerPool("./engines/jpegli/worker.js", POOL_SIZE, () => {
     isJpegliReady = jpegliPool.isReady();
     jpegliHasError = jpegliPool.hasError;
     updateUI();

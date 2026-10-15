@@ -55,7 +55,7 @@ No existe un motor que sea "el mejor" para todas las imágenes. MozJPEG y Jpegli
 
 ## Compilación de los motores WASM
 
-Los binarios WASM precompilados ya están incluidos en `web/mozjpeg/` y `web/jpegli/`, por lo que **no necesitas compilar nada para usar la aplicación**. Solo compila si quieres modificar los wrappers C/C++ o actualizar las librerías upstream.
+Los binarios WASM precompilados ya están incluidos en `web/engines/mozjpeg/` y `web/engines/jpegli/`, por lo que **no necesitas compilar nada para usar la aplicación**. Solo compila si quieres modificar los wrappers C/C++ o actualizar las librerías upstream.
 
 ### Requisitos de compilación
 
@@ -69,13 +69,13 @@ Los binarios WASM precompilados ya están incluidos en `web/mozjpeg/` y `web/jpe
 source ~/emsdk/emsdk_env.sh
 
 # Compilar MozJPEG
-bash build-mozjpeg.sh
+bash scripts/build-mozjpeg.sh
 
 # Compilar Jpegli
-bash build-jpegli.sh
+bash scripts/build-jpegli.sh
 ```
 
-Cada script se encarga de clonar el código fuente (si no existe), configurar CMake, compilar las librerías estáticas, generar el wrapper WASM, y copiar los archivos finales a `web/`.
+Cada script se encarga de clonar el código fuente (si no existe), configurar CMake, compilar las librerías estáticas, generar el wrapper WASM, y copiar los archivos finales a `web/engines/`.
 
 > Para detalles técnicos de arquitectura, convenciones de código, flujo de datos interno, y guía de contribución, ver [AGENTS.md](AGENTS.md).
 
@@ -85,8 +85,9 @@ Cada script se encarga de clonar el código fuente (si no existe), configurar CM
 wasm-compressor/
 ├── AGENTS.md               # Documentación técnica para desarrolladores
 ├── README.md               # Este archivo
-├── build-mozjpeg.sh        # Script de compilación MozJPEG → WASM
-├── build-jpegli.sh         # Script de compilación Jpegli → WASM
+├── scripts/                # Scripts de compilación a WebAssembly
+│   ├── build-mozjpeg.sh    # Script de compilación MozJPEG → WASM
+│   └── build-jpegli.sh     # Script de compilación Jpegli → WASM
 ├── src/                    # Código fuente C/C++
 │   ├── mozjpeg-wrapper.c   # Wrapper MozJPEG para Emscripten
 │   └── jpegli-wrapper.cpp  # Wrapper Jpegli para Emscripten
@@ -98,15 +99,17 @@ wasm-compressor/
     ├── js/
     │   ├── main.js         # Lógica principal (workers, compresión, descarga)
     │   ├── modal.js        # Modales de configuración de parámetros
+    │   ├── guide.js        # Guía interactiva de parámetros
     │   └── compare.js      # Visor de comparación A/B
-    ├── mozjpeg/             # Motor MozJPEG
-    │   ├── worker.js
-    │   ├── encoder.js
-    │   └── encoder.wasm
-    └── jpegli/              # Motor Jpegli
-        ├── worker.js
-        ├── encoder.js
-        └── encoder.wasm
+    └── engines/            # Motores de compresión WASM
+        ├── mozjpeg/        # Motor MozJPEG
+        │   ├── worker.js
+        │   ├── encoder.js
+        │   └── encoder.wasm
+        └── jpegli/         # Motor Jpegli
+            ├── worker.js
+            ├── encoder.js
+            └── encoder.wasm
 ```
 
 ## Roadmap
