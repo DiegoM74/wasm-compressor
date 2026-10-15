@@ -1,1 +1,2 @@
 *.wasm -text
+*.sh text eol=lf
