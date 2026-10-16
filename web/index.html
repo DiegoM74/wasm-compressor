@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Compresor JPEG WASM</title>
+    <title>Compresor WASM (JPEG · PNG)</title>
     <link rel="icon" type="image/x-icon" href="img/favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -11,8 +11,8 @@
       href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=3.1" />
-    <link rel="stylesheet" href="css/compare.css?v=3.1" />
+    <link rel="stylesheet" href="css/main.css?v=3.2" />
+    <link rel="stylesheet" href="css/compare.css?v=3.2" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   </head>
 
@@ -23,10 +23,10 @@
         <div class="header-badge">
           <span>Compresión Paralela SIMD · Serverless</span>
         </div>
-        <h1 class="header-title">Compresor <span>JPEG WASM</span></h1>
+        <h1 class="header-title">Compresor <span>WASM (JPEG · PNG)</span></h1>
         <p class="header-subtitle">
-          Optimiza imágenes JPEG en paralelo aprovechando todos los núcleos de
-          tu procesador mediante WebAssembly y SIMD con MozJPEG y Jpegli.
+          Optimiza imágenes JPEG y PNG en paralelo aprovechando todos los núcleos de
+          tu procesador mediante WebAssembly y SIMD con MozJPEG, Jpegli y libimagequant.
         </p>
 
         <!-- Estado de Motores WASM (Pills) -->
@@ -44,6 +44,13 @@
             </svg>
             <span>Jpegli</span>
           </div>
+
+          <div id="status-imagequant" class="lib-status-pill">
+            <svg class="status-icon">
+              <use href="img/main.svg#refreshIcon"></use>
+            </svg>
+            <span>libimagequant</span>
+          </div>
         </div>
       </header>
 
@@ -53,10 +60,10 @@
           <svg class="card-title-icon" width="20" height="20">
             <use href="img/main.svg#imageIcon"></use>
           </svg>
-          Imágenes JPEG
+          Imágenes JPEG y PNG
         </h2>
         <p class="card-subtitle">
-          Sube o arrastra las fotos que vas a procesar. El procesamiento se
+          Sube o arrastra las fotos o imágenes que vas a procesar. El procesamiento se
           realiza 100% en tu navegador de forma local y segura.
         </p>
 
@@ -65,14 +72,14 @@
           id="drop-zone"
           class="dropzone"
           role="region"
-          aria-label="Área para arrastrar y soltar imágenes JPEG"
+          aria-label="Área para arrastrar y soltar imágenes JPEG y PNG"
           tabindex="0"
         >
           <input
             type="file"
             id="file-input"
             class="file-input-hidden"
-            accept="image/jpeg"
+            accept="image/jpeg,image/png"
             style="display: none"
             multiple
           />
@@ -81,7 +88,7 @@
               <use href="img/main.svg#uploadIcon"></use>
             </svg>
           </div>
-          <p class="dropzone-text drop-text">Arrastra tus imágenes JPEG aquí</p>
+          <p class="dropzone-text drop-text">Arrastra tus imágenes JPEG o PNG aquí</p>
           <p class="dropzone-subtext drop-hint">
             o haz clic para seleccionar (puedes elegir varias fotos a la vez)
           </p>
@@ -216,6 +223,51 @@
                 </button>
               </div>
             </div>
+
+            <!-- Motor libimagequant (PNG) -->
+            <div class="engine-card">
+              <div class="engine-card-header">
+                <span class="engine-title">libimagequant (PNG)</span>
+                <div class="config-buttons-group">
+                  <button
+                    id="config-imagequant-btn"
+                    class="config-btn"
+                    title="Configurar libimagequant"
+                    aria-label="Configurar libimagequant"
+                  >
+                    <svg class="config-icon">
+                      <use href="img/main.svg#configIcon"></use>
+                    </svg>
+                  </button>
+                  <button
+                    id="guide-imagequant-btn"
+                    class="config-btn"
+                    title="Guía de opciones libimagequant"
+                    aria-label="Guía de opciones libimagequant"
+                  >
+                    <svg class="config-icon">
+                      <use href="img/main.svg#infoIcon"></use>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="engine-card-actions">
+                <button
+                  id="compress-imagequant-btn"
+                  class="btn-secondary btn-sm"
+                  disabled
+                >
+                  Comprimir
+                </button>
+                <button
+                  id="download-imagequant-btn"
+                  class="btn-secondary btn-sm"
+                  disabled
+                >
+                  Descargar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -280,9 +332,9 @@
       </footer>
     </main>
 
-    <script src="js/main.js?v=3.2"></script>
-    <script src="js/modal.js?v=3.1"></script>
-    <script src="js/guide.js?v=3.1"></script>
-    <script src="js/compare.js?v=3.1"></script>
+    <script src="js/main.js?v=3.4"></script>
+    <script src="js/modal.js?v=3.4"></script>
+    <script src="js/guide.js?v=3.4"></script>
+    <script src="js/compare.js?v=3.4"></script>
   </body>
 </html>

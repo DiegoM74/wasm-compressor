@@ -569,6 +569,193 @@ function openGuideModal(library, targetId) {
   }
 }
 
+// ── Guía de opciones para libimagequant (PNG) ──
+
+const imagequantGuideData = [
+  {
+    section: "Parámetros Principales de Cuantización",
+    entries: [
+      {
+        id: "imagequant-quality",
+        name: "Calidad objetivo / máxima",
+        description:
+          "Nivel de calidad visual objetivo deseado (escala 1-100). libimagequant busca la paleta más compacta que logre esta fidelidad visual sin exceder los colores máximos configurados.",
+        pros: "Ajuste directo entre fidelidad visual y peso. Menores valores reducen el tamaño final dinámicamente.",
+        cons: "Valores por debajo de 60 en imágenes con degradados sutiles pueden introducir bandeado si no se acompaña de tramado.",
+        recommended: "85 (Rango óptimo para web: 75 - 90).",
+      },
+      {
+        id: "imagequant-min-quality",
+        name: "Calidad mínima aceptable",
+        description:
+          "Cota inferior de fidelidad tolerable (0-100). Si la imagen requeriría superar los colores máximos para cumplir este umbral, el motor lo detecta para aplicar la política seleccionada.",
+        pros: "Garantiza un control estricto de calidad impidiendo que la imagen se degrade por debajo de lo deseado.",
+        cons: "Si se configura un valor muy alto (ej: >80) junto a pocos colores, el proceso podría rechazar imágenes complejas.",
+        recommended: "55 (Rango recomendado: 40 - 65).",
+      },
+      {
+        id: "imagequant-strict-quality",
+        name: "Calidad mínima estricta",
+        description:
+          "Define el comportamiento cuando la imagen no puede alcanzar la calidad mínima exigida con el límite de colores permitido.",
+        pros: "En modo desactivado (Mejor esfuerzo / Fallback), garantiza que siempre se obtenga un PNG con la mejor aproximación posible. Activado, sirve para pipelines que exigen no degradar imágenes.",
+        cons: "Si está activado y la calidad mínima no se cumple, la compresión de ese archivo fallará.",
+        recommended: "Desactivado (Mejor esfuerzo).",
+      },
+      {
+        id: "imagequant-max-colors",
+        name: "Colores máximos (Paleta indexada)",
+        description:
+          "Límite máximo de colores únicos en la paleta indexada (formato PNG-8). Cada color cuenta con su propio canal alfa independiente de 8 bits (0-255).",
+        pros: "Reducir a 128, 64 o 16 colores disminuye notablemente el peso en iconos, ilustraciones, capturas y gráficos.",
+        cons: "Valores menores a 128 en fotos o sombras continuas pueden producir pérdida de matices sutiles.",
+        recommended: "256 para máxima fidelidad; 64-128 para iconos y capturas.",
+      },
+    ],
+  },
+  {
+    section: "Algoritmos de Cuantización y Color",
+    entries: [
+      {
+        id: "imagequant-dithering",
+        name: "Nivel de tramado (Dithering)",
+        description:
+          "Difusión de error espacial Floyd-Steinberg que dispersa sutilmente los píxeles vecinos para simular gradientes suaves y transiciones continuas.",
+        pros: "Elimina eficazmente el 'color banding' en degradados, cielos y sombras transparentes.",
+        cons: "En diagramas con textos finos o líneas nítidas puede añadir un sutil granulado; se puede bajar a 0 en esos casos.",
+        recommended: "1.0 (100% activado) para la mayoría de imágenes; 0.0 para gráficos con texto o colores planos.",
+      },
+      {
+        id: "imagequant-posterization",
+        name: "Posterización mínima (Truncamiento de bits)",
+        description:
+          "Trunca los bits menos significativos de los canales RGB antes de la cuantización (0 = 8 bits completos, 1 = 7 bits, 2 = 6 bits / RGB565, 3 = 5 bits, 4 = 4 bits / RGBA4444).",
+        pros: "Reduce el ruido de alta frecuencia y agrupa colores similares, logrando reducciones colosales de tamaño (20% a 45%) en capturas de pantalla, cómics y dibujos.",
+        cons: "Valores altos (3 o 4) introducen saltos visibles de tono en fotografías.",
+        recommended: "0 para fotografías y logos con degradados; 1 o 2 para capturas de pantalla y arte plano.",
+      },
+      {
+        id: "imagequant-gamma",
+        name: "Corrección Gamma y Balance Tonal",
+        description:
+          "Ajusta el exponente gamma usado durante el cálculo perceptivo de distancias de color. sRGB (2.2) equilibra tonos medios; Lineal (1.0) da igual peso a luces y sombras.",
+        pros: "Permite afinar la distribución de paleta dando mayor peso visual a áreas oscuras o claras según la composición.",
+        cons: "Variar de sRGB estándar puede alterar la densidad de color en áreas periféricas.",
+        recommended: "sRGB Estándar (Gamma 2.2).",
+      },
+      {
+        id: "imagequant-last-index-transparent",
+        name: "Transparencia al final de la paleta",
+        description:
+          "Por defecto, el color completamente transparente se asigna al índice 0. Al activar esta opción, se desplaza al último índice disponible.",
+        pros: "Compatibilidad con motores gráficos, juegos retro o visores de imagen que esperan la transparencia en el índice final.",
+        cons: "Innecesario para navegadores web estándar.",
+        recommended: "Desactivado.",
+      },
+      {
+        id: "imagequant-auto-bit-depth",
+        name: "Reducción automática de profundidad de bits",
+        description:
+          "Si la paleta final resultante usa ≤ 16 colores, el PNG se codifica a 4 bits; si usa ≤ 4 colores, a 2 bits; si usa ≤ 2 colores, a 1 bit por píxel.",
+        pros: "Reduce el tamaño del búfer de píxeles sin comprimir a la mitad (o un cuarto) antes del algoritmo Deflate, logrando ahorros masivos en imágenes simples.",
+        cons: "Ninguno; totalmente estándar y compatible con todos los navegadores modernos.",
+        recommended: "Activado.",
+      },
+    ],
+  },
+  {
+    section: "Compresión del Contenedor PNG (Deflate / LodePNG)",
+    entries: [
+      {
+        id: "imagequant-filter-strategy",
+        name: "Estrategia de filtrado PNG",
+        description:
+          "Algoritmo de predicción diferencial previo a la compresión Deflate. En imágenes indexadas (paleta), el Filtro 0 suele ser óptimo ya que los índices numéricos no representan gradientes contiguos.",
+        pros: "Filtro 0 maximiza la velocidad y la compresión en datos de paleta. Búsqueda exhaustiva puede rascar algún byte extra en casos atípicos.",
+        cons: "Filtros diferenciales (Sub/Up/Paeth) aplicados a índices aleatorios pueden empeorar la compresión.",
+        recommended: "Filtro 0 (Recomendado para paletas PNG-8).",
+      },
+      {
+        id: "imagequant-filter-palette-zero",
+        name: "Forzar Filtro Cero en paleta",
+        description:
+          "Sigue la recomendación oficial del consorcio W3C PNG: obliga a aplicar Filtro 0 en scanlines de imágenes paletizadas independientemente de la estrategia global.",
+        pros: "Previene artefactos de compresión y garantiza el mejor ratio en imágenes de paleta.",
+        cons: "Ninguno para PNG-8.",
+        recommended: "Activado.",
+      },
+      {
+        id: "imagequant-zlib-windowsize",
+        name: "Tamaño de ventana LZ77 (Deflate)",
+        description:
+          "Tamaño del búfer de historial deslizante donde el compresor busca secuencias repetidas. LodePNG usa 2 KB por defecto; 32 KB es el estándar industrial máximo de oxipng y zlib.",
+        pros: "32 KB permite encontrar patrones repetidos a lo largo de toda la imagen, logrando entre 5% y 15% de reducción adicional.",
+        cons: "Requiere ligeramente más memoria durante la codificación (despreciable en navegadores modernos).",
+        recommended: "32 KB (Máxima compresión).",
+      },
+      {
+        id: "imagequant-zlib-nicematch",
+        name: "LZ77 Nicematch",
+        description:
+          "Longitud de coincidencia a partir de la cual el compresor da por buena la búsqueda y emite el código Deflate (máximo 258 según RFC 1951).",
+        pros: "258 encuentra las cadenas más largas posibles, maximizando el ratio de compresión.",
+        cons: "Incremento marginal en el tiempo de procesamiento.",
+        recommended: "258.",
+      },
+      {
+        id: "imagequant-zlib-lazymatching",
+        name: "Evaluación perezosa (Lazy Matching)",
+        description:
+          "Comprueba si en el byte siguiente existe una coincidencia más larga antes de emitir la coincidencia actual.",
+        pros: "Mejora la compresión Deflate de forma consistente.",
+        cons: "Ligero costo computacional adicional.",
+        recommended: "Activado.",
+      },
+      {
+        id: "imagequant-interlace",
+        name: "Entrelazado progresivo Adam7",
+        description:
+          "Distribuye los píxeles en 7 pasadas para que la imagen se visualice de forma progresiva mientras se descarga en la web.",
+        pros: "Excelente experiencia de visualización en redes móviles o conexiones lentas.",
+        cons: "El entrelazado suele aumentar el tamaño final del archivo entre un 5% y un 15% debido a la fragmentación de patrones.",
+        recommended: "Desactivado (activar solo si se necesita carga progresiva en web).",
+      },
+    ],
+  },
+  {
+    section: "Avanzado y Metadatos",
+    entries: [
+      {
+        id: "imagequant-speed",
+        name: "Velocidad de procesamiento (Speed)",
+        description:
+          "Ajusta el equilibrio entre pasadas de análisis K-means y precisión de color (1 = Máxima precisión / Lento, 10 = Rápido).",
+        pros: "Velocidad 4 ofrece el balance idóneo. Velocidad 1 maximiza la calidad matemática a costa de ciclos de CPU.",
+        cons: "Velocidad 10 reduce ligeramente la precisión en degradados complejos.",
+        recommended: "4 (valor oficial recomendado de pngquant).",
+      },
+      {
+        id: "imagequant-strip-metadata",
+        name: "Descartar metadatos auxiliares",
+        description:
+          "Elimina fragmentos no indispensables del PNG (comentarios de texto tEXt/zTXt/iTXt, fecha tIME, resolución pHYs y metadatos editor).",
+        pros: "Ahorro garantizado del 2% al 10% adicional sin alteración visual de los píxeles ni de la transparencia.",
+        cons: "Descarta información de autoría o comentarios embebidos.",
+        recommended: "Activado.",
+      },
+      {
+        id: "imagequant-write-srgb-chunk",
+        name: "Incluir chunks de espacio de color sRGB/gAMA",
+        description:
+          "Inserta los bloques estándar sRGB y gAMA (17 bytes) para indicar de forma explícita que la paleta debe renderizarse en el espacio de color sRGB estándar.",
+        pros: "Garantiza fidelidad tonal exacta en navegadores con gestión de color avanzada y monitores Wide Gamut (DCI-P3).",
+        cons: "Añade apenas 17 bytes al archivo.",
+        recommended: "Activado.",
+      },
+    ],
+  },
+];
+
 // ── Inicialización e inyección en el DOM ──
 
 function initGuides() {
@@ -582,16 +769,25 @@ function initGuides() {
     "Guía de opciones Jpegli",
     jpegliGuideData,
   );
+  const imagequantModal = buildGuideModal(
+    "imagequant",
+    "Guía de opciones libimagequant (PNG)",
+    imagequantGuideData,
+  );
 
-  document.body.append(mozModal, jpegliModal);
+  document.body.append(mozModal, jpegliModal, imagequantModal);
 
-  // Conectar botones principales de UI (si existen en index.html)
+  // Conectar botones principales de UI
   g("guide-mozjpeg-btn")?.addEventListener("click", () => {
     openGuideModal("mozjpeg");
   });
 
   g("guide-jpegli-btn")?.addEventListener("click", () => {
     openGuideModal("jpegli");
+  });
+
+  g("guide-imagequant-btn")?.addEventListener("click", () => {
+    openGuideModal("imagequant");
   });
 }
 
@@ -601,3 +797,4 @@ if (document.readyState === "loading") {
 } else {
   initGuides();
 }
+

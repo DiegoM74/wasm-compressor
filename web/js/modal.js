@@ -29,7 +29,13 @@ function el(tag, attrs = {}, ...children) {
   }
 
   for (const child of children) {
-    if (child) node.append(child);
+    if (Array.isArray(child)) {
+      for (const c of child) {
+        if (c) node.append(c);
+      }
+    } else if (child) {
+      node.append(child);
+    }
   }
   return node;
 }
@@ -53,7 +59,11 @@ function helpIcon(help, id) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-      const library = id.startsWith("moz-") ? "mozjpeg" : "jpegli";
+      const library = id.startsWith("moz-")
+        ? "mozjpeg"
+        : id.startsWith("imagequant-")
+        ? "imagequant"
+        : "jpegli";
       if (typeof openGuideModal === "function") {
         openGuideModal(library, id);
       }
@@ -128,7 +138,10 @@ function selectGroup({ id, label, help, options }) {
   lbl.append(left, helpIcon(help, id));
 
   const select = el("select", { id });
-  for (const { value, text, selected } of options) {
+  for (const optData of options) {
+    const value = optData.value;
+    const text = optData.text ?? optData.label ?? String(value);
+    const selected = optData.selected;
     const opt = el("option", { value: String(value) }, text);
     if (selected) opt.selected = true;
     select.append(opt);
@@ -614,8 +627,204 @@ function buildJpegliModal() {
   );
 }
 
+// ── Modal libimagequant (PNG) ──
+function buildImagequantModal() {
+  const posterizationOpts = [
+    { value: "0", text: "0 — Desactivado (calidad completa 24-bit)" },
+    { value: "1", text: "1 bit — 7 bits/canal (128 niveles)" },
+    { value: "2", text: "2 bits — 6 bits/canal (64 niveles / RGB565)" },
+    { value: "3", text: "3 bits — 5 bits/canal (32 niveles)" },
+    { value: "4", text: "4 bits — 4 bits/canal (16 niveles / RGBA4444)" },
+  ];
+
+  const gammaOpts = [
+    { value: "0.0", text: "sRGB Estándar (Gamma 2.2 / Recomendado)" },
+    { value: "1.0", text: "Lineal (1.0 — Balance neutro)" },
+    { value: "0.555", text: "Mac Clásico (Gamma 1.8 — Énfasis en luces)" },
+  ];
+
+  const filterOpts = [
+    { value: "0", text: "Filtro 0 (Recomendado para paletas PNG-8)" },
+    { value: "5", text: "Adaptativo Heurístico (Minsum)" },
+    { value: "6", text: "Entropía Shannon" },
+    { value: "7", text: "Búsqueda Exhaustiva (Fuerza bruta)" },
+  ];
+
+  const windowsizeOpts = [
+    { value: "32768", text: "32 KB (Máxima compresión - Estándar oxipng/zlib)" },
+    { value: "16384", text: "16 KB" },
+    { value: "8192", text: "8 KB" },
+    { value: "2048", text: "2 KB (Rápido - Default histórico LodePNG)" },
+  ];
+
+  const qualityRow = sliderGroup({
+    id: "imagequant-quality",
+    label: "Calidad objetivo / máxima",
+    help: "Nivel de calidad visual objetivo (1-100). Ajusta dinámicamente la precisión de la paleta y el tamaño del archivo resultante. Menor valor produce archivos más ligeros.",
+    min: 1,
+    max: 100,
+    value: 85,
+    step: 1,
+  });
+
+  const minQualityRow = sliderGroup({
+    id: "imagequant-min-quality",
+    label: "Calidad mínima aceptable",
+    help: "Límite inferior de calidad permisible (0-100). Evita degradar la imagen por debajo de este umbral.",
+    min: 0,
+    max: 100,
+    value: 55,
+    step: 1,
+  });
+
+  const strictQualityRow = checkboxGroup({
+    id: "imagequant-strict-quality",
+    label: "Calidad mínima estricta",
+    help: "Si está desactivado (Mejor esfuerzo), intenta comprimir con la mejor aproximación posible si no alcanza la calidad mínima. Si se activa, aborta con error si no se alcanza la fidelidad requerida.",
+    checked: false,
+  });
+
+  const maxColorsRow = sliderGroup({
+    id: "imagequant-max-colors",
+    label: "Colores máximos (Paleta indexada)",
+    help: "Colores únicos asignados a la paleta indexada del PNG (formato PNG-8 con canal alfa completo).",
+    min: 2,
+    max: 256,
+    value: 256,
+    step: 1,
+  });
+
+  // Acordeón: Algoritmos de Cuantización y Color
+  const algorithmsAccordion = accordion(
+    "Algoritmos de Cuantización y Color",
+    sliderGroup({
+      id: "imagequant-dithering",
+      label: "Nivel de tramado (Dithering)",
+      help: "Difusión de error Floyd-Steinberg para degradados continuos y transiciones suaves.",
+      min: 0,
+      max: 100,
+      value: 100,
+      step: 5,
+      divisor: 100,
+    }),
+    selectGroup({
+      id: "imagequant-posterization",
+      label: "Posterización mínima",
+      help: "Trunca los bits menos significativos antes de la cuantización, reduciendo ruido y agrupando colores para generar archivos notablemente más pequeños en capturas, cómics e ilustraciones.",
+      options: posterizationOpts,
+    }),
+    selectGroup({
+      id: "imagequant-gamma",
+      label: "Corrección Gamma",
+      help: "Controla si se asignan más entradas de paleta a regiones oscuras o claras de la imagen.",
+      options: gammaOpts,
+    }),
+    checkboxGroup({
+      id: "imagequant-last-index-transparent",
+      label: "Transparencia al final de la paleta",
+      help: "Por defecto el color transparente se ubica en el índice 0. Activarlo lo mueve al último índice para compatibilidad con visores o motores de juego específicos.",
+      checked: false,
+    }),
+    checkboxGroup({
+      id: "imagequant-auto-bit-depth",
+      label: "Reducción automática de bits (1, 2, 4 u 8 bits)",
+      help: "Si la paleta resultante tiene ≤ 16 colores, almacena en 4 bits (o 2 o 1 bit), reduciendo a la mitad el tamaño del búfer de píxeles antes de la compresión Deflate.",
+      checked: true,
+    }),
+  );
+
+  // Acordeón: Compresión del Contenedor PNG (Deflate / LodePNG)
+  const containerAccordion = accordion(
+    "Compresión del Contenedor PNG (Deflate)",
+    selectGroup({
+      id: "imagequant-filter-strategy",
+      label: "Estrategia de filtrado PNG",
+      help: "Filtro aplicado por línea antes de comprimir con Deflate. En imágenes indexadas, el Filtro 0 suele ofrecer la mayor compresión y velocidad.",
+      options: filterOpts,
+    }),
+    checkboxGroup({
+      id: "imagequant-filter-palette-zero",
+      label: "Forzar Filtro Cero en paleta",
+      help: "Cumple la sugerencia del estándar PNG W3C para datos de paleta indexada.",
+      checked: true,
+    }),
+    selectGroup({
+      id: "imagequant-zlib-windowsize",
+      label: "Tamaño de ventana LZ77",
+      help: "Espacio de búsqueda para secuencias de bytes repetidas en Deflate. 32 KB logra la mayor compresión.",
+      options: windowsizeOpts,
+    }),
+    sliderGroup({
+      id: "imagequant-zlib-nicematch",
+      label: "LZ77 Nicematch",
+      help: "Longitud de coincidencia en la que el compresor detiene la búsqueda LZ77. 258 es el máximo del estándar RFC 1951.",
+      min: 8,
+      max: 258,
+      value: 258,
+      step: 1,
+    }),
+    checkboxGroup({
+      id: "imagequant-zlib-lazymatching",
+      label: "Lazy Matching LZ77",
+      help: "Busca una coincidencia mejor en el siguiente byte antes de emitir la coincidencia actual. Aumenta la compresión.",
+      checked: true,
+    }),
+    checkboxGroup({
+      id: "imagequant-interlace",
+      label: "Entrelazado progresivo Adam7",
+      help: "Codifica el PNG en 7 pasadas para permitir carga progresiva en navegadores web.",
+      checked: false,
+    }),
+  );
+
+  // Acordeón: Avanzado y Metadatos
+  const advancedAccordion = accordion(
+    "Avanzado y Metadatos",
+    sliderGroup({
+      id: "imagequant-speed",
+      label: "Velocidad de cuantización (1=Mejor calidad, 10=Rápido)",
+      help: "Equilibrio entre cálculo de CPU y calidad del mapa de colores. Recomendado: 4.",
+      min: 1,
+      max: 10,
+      value: 4,
+      step: 1,
+    }),
+    checkboxGroup({
+      id: "imagequant-strip-metadata",
+      label: "Descartar metadatos auxiliares",
+      help: "Elimina chunks no esenciales de texto, comentarios, fecha y editor para reducir el peso al máximo.",
+      checked: true,
+    }),
+    checkboxGroup({
+      id: "imagequant-write-srgb-chunk",
+      label: "Incluir chunks de color sRGB/gAMA",
+      help: "Inserta marcadores sRGB y gAMA de 17 bytes para asegurar idéntica reproducción cromática en todos los monitores.",
+      checked: true,
+    }),
+  );
+
+  return makeModal(
+    "modal-imagequant",
+    "Configuración libimagequant (PNG)",
+    [
+      qualityRow,
+      minQualityRow,
+      strictQualityRow,
+      maxColorsRow,
+      algorithmsAccordion,
+      containerAccordion,
+      advancedAccordion,
+    ],
+    { cancelId: "imagequant-cancel", applyId: "imagequant-apply" },
+  );
+}
+
 // ── Inyectar modales en el DOM ──
-document.body.append(buildMozjpegModal(), buildJpegliModal());
+document.body.append(
+  buildMozjpegModal(),
+  buildJpegliModal(),
+  buildImagequantModal(),
+);
 
 // ── Referencias a elementos del DOM ──
 // MozJPEG
@@ -683,6 +892,35 @@ const jpegliAdaptiveQuant = g("jpegli-adaptive-quant");
 const jpegliWriteJfif = g("jpegli-write-jfif");
 const jpegliApply = g("jpegli-apply");
 const jpegliCancel = g("jpegli-cancel");
+
+// libimagequant (PNG)
+const modalImagequant = g("modal-imagequant");
+const iqQuality = g("imagequant-quality");
+const iqQualityVal = g("imagequant-quality-value");
+const iqMinQuality = g("imagequant-min-quality");
+const iqMinQualityVal = g("imagequant-min-quality-value");
+const iqStrictQuality = g("imagequant-strict-quality");
+const iqMaxColors = g("imagequant-max-colors");
+const iqMaxColorsVal = g("imagequant-max-colors-value");
+const iqSpeed = g("imagequant-speed");
+const iqSpeedVal = g("imagequant-speed-value");
+const iqDithering = g("imagequant-dithering");
+const iqDitheringVal = g("imagequant-dithering-value");
+const iqPosterization = g("imagequant-posterization");
+const iqGamma = g("imagequant-gamma");
+const iqLastIndexTransparent = g("imagequant-last-index-transparent");
+const iqAutoBitDepth = g("imagequant-auto-bit-depth");
+const iqFilterStrategy = g("imagequant-filter-strategy");
+const iqFilterPaletteZero = g("imagequant-filter-palette-zero");
+const iqZlibWindowsize = g("imagequant-zlib-windowsize");
+const iqZlibNicematch = g("imagequant-zlib-nicematch");
+const iqZlibNicematchVal = g("imagequant-zlib-nicematch-value");
+const iqZlibLazymatching = g("imagequant-zlib-lazymatching");
+const iqInterlace = g("imagequant-interlace");
+const iqStripMetadata = g("imagequant-strip-metadata");
+const iqWriteSrgbChunk = g("imagequant-write-srgb-chunk");
+const iqApply = g("imagequant-apply");
+const iqCancel = g("imagequant-cancel");
 
 // ── Lógica de acordeón ──
 document.querySelectorAll(".accordion-header").forEach((header) => {
@@ -998,10 +1236,231 @@ jpegliCancel.addEventListener("click", () =>
 modalJpegli.addEventListener("click", (e) => {
   if (e.target === modalJpegli) modalJpegli.classList.remove("show");
 });
+// ── Lógica de configuración libimagequant ──
+function initImagequantModalListeners() {
+  [
+    { input: iqQuality, display: iqQualityVal },
+    { input: iqMinQuality, display: iqMinQualityVal },
+    { input: iqMaxColors, display: iqMaxColorsVal },
+    { input: iqSpeed, display: iqSpeedVal },
+    { input: iqDithering, display: iqDitheringVal, divisor: 100 },
+    { input: iqZlibNicematch, display: iqZlibNicematchVal },
+  ].forEach(({ input, display, divisor }) => {
+    if (!input || !display) return;
+    input.addEventListener("input", () => {
+      display.textContent = divisor
+        ? (input.value / divisor).toFixed(2)
+        : input.value;
+    });
+  });
+
+  g("config-imagequant-btn")?.addEventListener("click", () => {
+    if (typeof imagequantConfig === "undefined") return;
+    iqQuality.value = imagequantConfig.quality ?? 85;
+    iqQualityVal.textContent = imagequantConfig.quality ?? 85;
+    iqMinQuality.value = imagequantConfig.min_quality ?? 55;
+    iqMinQualityVal.textContent = imagequantConfig.min_quality ?? 55;
+    iqStrictQuality.checked = !!imagequantConfig.strict_quality;
+    iqMaxColors.value = imagequantConfig.max_colors ?? 256;
+    iqMaxColorsVal.textContent = imagequantConfig.max_colors ?? 256;
+    iqSpeed.value = imagequantConfig.speed ?? 4;
+    iqSpeedVal.textContent = imagequantConfig.speed ?? 4;
+    iqDithering.value = Math.round((imagequantConfig.dithering ?? 1.0) * 100);
+    iqDitheringVal.textContent = Number(imagequantConfig.dithering ?? 1.0).toFixed(2);
+    iqPosterization.value = String(imagequantConfig.posterization ?? 0);
+    iqGamma.value = String(imagequantConfig.gamma ?? 0.0);
+    iqLastIndexTransparent.checked = !!imagequantConfig.last_index_transparent;
+    iqAutoBitDepth.checked = imagequantConfig.auto_bit_depth !== false;
+    iqFilterStrategy.value = String(imagequantConfig.filter_strategy ?? 0);
+    iqFilterPaletteZero.checked = imagequantConfig.filter_palette_zero !== false;
+    iqZlibWindowsize.value = String(imagequantConfig.zlib_windowsize ?? 32768);
+    iqZlibNicematch.value = imagequantConfig.zlib_nicematch ?? 258;
+    iqZlibNicematchVal.textContent = imagequantConfig.zlib_nicematch ?? 258;
+    iqZlibLazymatching.checked = imagequantConfig.zlib_lazymatching !== false;
+    iqInterlace.checked = !!imagequantConfig.interlace;
+    iqStripMetadata.checked = imagequantConfig.strip_metadata !== false;
+    iqWriteSrgbChunk.checked = imagequantConfig.write_srgb_chunk !== false;
+    modalImagequant.classList.add("show");
+  });
+
+  iqApply?.addEventListener("click", () => {
+    if (typeof imagequantConfig === "undefined") return;
+    const q = parseInt(iqQuality.value, 10);
+    imagequantConfig.quality = q;
+    imagequantConfig.max_quality = q;
+    imagequantConfig.min_quality = parseInt(iqMinQuality.value, 10);
+    imagequantConfig.strict_quality = iqStrictQuality.checked;
+    imagequantConfig.max_colors = parseInt(iqMaxColors.value, 10);
+    imagequantConfig.speed = parseInt(iqSpeed.value, 10);
+    imagequantConfig.dithering = parseFloat(iqDithering.value) / 100;
+    imagequantConfig.posterization = parseInt(iqPosterization.value, 10);
+    imagequantConfig.gamma = parseFloat(iqGamma.value);
+    imagequantConfig.last_index_transparent = iqLastIndexTransparent.checked;
+    imagequantConfig.auto_bit_depth = iqAutoBitDepth.checked;
+    imagequantConfig.filter_strategy = parseInt(iqFilterStrategy.value, 10);
+    imagequantConfig.filter_palette_zero = iqFilterPaletteZero.checked;
+    imagequantConfig.zlib_windowsize = parseInt(iqZlibWindowsize.value, 10);
+    imagequantConfig.zlib_nicematch = parseInt(iqZlibNicematch.value, 10);
+    imagequantConfig.zlib_lazymatching = iqZlibLazymatching.checked;
+    imagequantConfig.interlace = iqInterlace.checked;
+    imagequantConfig.strip_metadata = iqStripMetadata.checked;
+    imagequantConfig.write_srgb_chunk = iqWriteSrgbChunk.checked;
+    modalImagequant.classList.remove("show");
+  });
+
+  iqCancel?.addEventListener("click", () => {
+    modalImagequant.classList.remove("show");
+  });
+
+  modalImagequant?.addEventListener("click", (e) => {
+    if (e.target === modalImagequant) modalImagequant.classList.remove("show");
+  });
+}
+
+// ── Modal de Detección para PNGs Opacos ──
+function showOpaquePngModal(count, onConvert, onKeep) {
+  let modal = g("modal-opaque-png");
+  if (!modal) {
+    const content = el(
+      "div",
+      { class: "modal-content", style: "max-width: 500px;" },
+      el("h2", {}, "Imágenes PNG sin transparencia"),
+      el(
+        "p",
+        {
+          id: "opaque-png-desc",
+          class: "modal-subtitle",
+          style: "margin-bottom: 1.25rem; text-align: left; line-height: 1.5;",
+        },
+      ),
+      el(
+        "div",
+        {
+          style:
+            "display: flex; flex-direction: row; gap: 0.75rem; justify-content: center; margin-bottom: 1.25rem;",
+        },
+        el(
+          "button",
+          {
+            id: "opaque-btn-convert",
+            class: "btn-primary",
+            style:
+              "flex: 1; min-height: 42px; padding: 0.6rem 1rem; font-size: 0.9rem; font-weight: 600; justify-content: center; text-align: center; white-space: nowrap;",
+          },
+          "Convertir a JPG",
+        ),
+        el(
+          "button",
+          {
+            id: "opaque-btn-keep",
+            class: "btn-secondary",
+            style:
+              "flex: 1; min-height: 42px; padding: 0.6rem 1rem; font-size: 0.9rem; font-weight: 600; justify-content: center; text-align: center; margin: 0; white-space: nowrap;",
+          },
+          "Mantener como PNG",
+        ),
+      ),
+      el(
+        "label",
+        {
+          style:
+            "display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--color-text-secondary); cursor: pointer;",
+        },
+        el("input", { type: "checkbox", id: "opaque-remember-choice" }),
+        el("span", {}, "Recordar mi elección para esta sesión"),
+      ),
+    );
+    modal = el("div", { id: "modal-opaque-png", class: "modal" }, content);
+    document.body.appendChild(modal);
+
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        modal.classList.remove("show");
+        onKeep(false);
+      }
+    };
+  }
+
+  const desc = modal.querySelector("#opaque-png-desc");
+  desc.innerHTML = `Se detectaron <strong>${count}</strong> imagen(es) PNG sin capa de transparencia.<br><br>• <strong>Convertir a JPG:</strong> Recomendado para fotos, logrando mayor compresión.<br>• <strong>Mantener como PNG:</strong> Recomendado para capturas y gráficos indexados.`;
+
+  const btnConvert = modal.querySelector("#opaque-btn-convert");
+  const btnKeep = modal.querySelector("#opaque-btn-keep");
+  const chkRemember = modal.querySelector("#opaque-remember-choice");
+
+  btnConvert.onclick = () => {
+    modal.classList.remove("show");
+    onConvert(chkRemember.checked);
+  };
+  btnKeep.onclick = () => {
+    modal.classList.remove("show");
+    onKeep(chkRemember.checked);
+  };
+
+  modal.classList.add("show");
+}
+
+// ── Modal de Selección de Descarga para Lotes Mixtos ──
+function showMixedDownloadModal(engineName, formatCounts, onConfirm) {
+  let modal = g("modal-mixed-download");
+  if (!modal) {
+    const content = el(
+      "div",
+      { class: "modal-content", style: "max-width: 500px;" },
+      el("h2", {}, "Opciones de Descarga"),
+      el(
+        "p",
+        { class: "modal-subtitle", style: "margin-bottom: 1.25rem; text-align: left;" },
+        "Tu lote contiene imágenes de diferentes formatos comprimidas:"
+      ),
+      el(
+        "div",
+        { id: "mixed-download-options", style: "display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;" }
+      ),
+      el(
+        "div",
+        { class: "modal-footer" },
+        el("button", { id: "mixed-download-cancel", class: "modal-btn cancel" }, "Cancelar"),
+        el("button", { id: "mixed-download-confirm", class: "modal-btn" }, "Descargar ZIP")
+      )
+    );
+    modal = el("div", { id: "modal-mixed-download", class: "modal" }, content);
+    document.body.appendChild(modal);
+
+    g("mixed-download-cancel").onclick = () => modal.classList.remove("show");
+    modal.onclick = (e) => {
+      if (e.target === modal) modal.classList.remove("show");
+    };
+  }
+
+  const container = modal.querySelector("#mixed-download-options");
+  container.innerHTML = `
+    <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; padding:0.6rem; background:var(--color-bg-subtle); border-radius:var(--measure-radius-sm); border:1px solid var(--color-card-border);">
+      <input type="radio" name="mixed-choice" value="engine-only" checked />
+      <span><b>Solo ${engineName}</b> (${formatCounts.engineCount} archivos)</span>
+    </label>
+    <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; padding:0.6rem; background:var(--color-bg-subtle); border-radius:var(--measure-radius-sm); border:1px solid var(--color-card-border);">
+      <input type="radio" name="mixed-choice" value="all-formats" />
+      <span><b>Paquete completo</b>: ${engineName} + imágenes del otro formato (${formatCounts.totalCount} archivos)</span>
+    </label>
+  `;
+
+  g("mixed-download-confirm").onclick = () => {
+    const selected = modal.querySelector('input[name="mixed-choice"]:checked')?.value || "engine-only";
+    modal.classList.remove("show");
+    onConfirm(selected);
+  };
+
+  modal.classList.add("show");
+}
+
+window.showOpaquePngModal = showOpaquePngModal;
+window.showMixedDownloadModal = showMixedDownloadModal;
 
 // ── Arranque ──
 initMozjpegModalListeners();
 initJpegliModalListeners();
+initImagequantModalListeners();
 
 // ── Bloqueo de scroll cuando hay modales abiertas ──
 const modalScrollObserver = new MutationObserver(() => {

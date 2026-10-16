@@ -24,7 +24,7 @@ function initCompareModal() {
 
       <div class="compare-body" id="compare-body">
         <div class="compare-slider-container" id="compare-container">
-          <div class="compare-layer compare-layer-left">
+          <div class="compare-layer compare-layer-left" id="compare-layer-left">
             <div class="zoom-layer" id="zoom-layer-left">
               <img id="compare-img-left" class="compare-img" alt="Imagen izquierda" />
             </div>
@@ -82,6 +82,7 @@ function handleEscapeKey(e) {
 // ── Lógica de interacción (slider + paneo + zoom) ──
 function attachInteractionEvents() {
   const container = document.getElementById("compare-container");
+  const layerLeft = document.getElementById("compare-layer-left");
   const layerRight = document.getElementById("compare-layer-right");
   const zoomLayerLeft = document.getElementById("zoom-layer-left");
   const zoomLayerRight = document.getElementById("zoom-layer-right");
@@ -99,13 +100,16 @@ function attachInteractionEvents() {
     zoomLayerRight.style.transform = transformStr;
   };
 
-  // Mueve la línea del slider y recorta la capa derecha según la posición X
+  // Mueve la línea del slider y recorta ambas capas simétricamente según la posición X
   const updateSlider = (clientX) => {
     const rect = container.getBoundingClientRect();
     const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
     const percent = (x / rect.width) * 100;
 
-    layerRight.style.clipPath = `polygon(${percent}% 0, 100% 0, 100% 100%, ${percent}% 100%)`;
+    if (layerLeft)
+      layerLeft.style.clipPath = `polygon(0 0, ${percent}% 0, ${percent}% 100%, 0 100%)`;
+    if (layerRight)
+      layerRight.style.clipPath = `polygon(${percent}% 0, 100% 0, 100% 100%, ${percent}% 100%)`;
     handle.style.left = `${percent}%`;
   };
 
@@ -215,8 +219,8 @@ function closeCompareModal() {
 }
 
 // Crea una URL de objeto temporal y la registra para liberarla al cerrar
-function getTempUrl(buffer) {
-  const url = URL.createObjectURL(new Blob([buffer], { type: "image/jpeg" }));
+function getTempUrl(buffer, mimeType = "image/jpeg") {
+  const url = URL.createObjectURL(new Blob([buffer], { type: mimeType }));
   currentCompareUrls.push(url);
   return url;
 }
@@ -242,6 +246,12 @@ function openCompareModal(fileId) {
 
   initCompareModal();
 
+  // Activar o desactivar fondo ajedrezado para transparencia si es PNG
+  const container = document.getElementById("compare-container");
+  if (container) {
+    container.classList.toggle("is-transparent", !!file.isPng);
+  }
+
   renderSelectors(versions);
   compareModal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -251,6 +261,7 @@ function openCompareModal(fileId) {
 
 // ── Construcción de versiones comparables ──
 function buildVersions(file) {
+  const isPng = file.isPng;
   const versions = [
     {
       id: "orig",
@@ -265,7 +276,7 @@ function buildVersions(file) {
     versions.push({
       id: "mozjpeg",
       name: "MozJPEG",
-      url: getTempUrl(file.mozjpegBuffer),
+      url: getTempUrl(file.mozjpegBuffer, "image/jpeg"),
       size: file.mozjpegSize,
       originalSize: file.originalSize,
     });
@@ -275,8 +286,18 @@ function buildVersions(file) {
     versions.push({
       id: "jpegli",
       name: "Jpegli",
-      url: getTempUrl(file.jpegliBuffer),
+      url: getTempUrl(file.jpegliBuffer, "image/jpeg"),
       size: file.jpegliSize,
+      originalSize: file.originalSize,
+    });
+  }
+
+  if (file.imagequantBuffer) {
+    versions.push({
+      id: "imagequant",
+      name: "libimagequant",
+      url: getTempUrl(file.imagequantBuffer, "image/png"),
+      size: file.imagequantSize,
       originalSize: file.originalSize,
     });
   }
@@ -341,11 +362,14 @@ function renderSelectors(versions) {
 
 // ── Reseteo del estado visual del modal ──
 function resetSliderState() {
+  const layerLeft = document.getElementById("compare-layer-left");
   const layerRight = document.getElementById("compare-layer-right");
   const handle = document.getElementById("compare-handle");
   const zoomLayerLeft = document.getElementById("zoom-layer-left");
   const zoomLayerRight = document.getElementById("zoom-layer-right");
 
+  if (layerLeft)
+    layerLeft.style.clipPath = "polygon(0 0, 50% 0, 50% 100%, 0 100%)";
   if (layerRight)
     layerRight.style.clipPath = "polygon(50% 0, 100% 0, 100% 100%, 50% 100%)";
   if (handle) handle.style.left = "50%";

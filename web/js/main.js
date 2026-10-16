@@ -7,11 +7,14 @@ const compressMozBtn = document.getElementById("compress-mozjpeg-btn");
 const downloadMozBtn = document.getElementById("download-mozjpeg-btn");
 const compressJpegliBtn = document.getElementById("compress-jpegli-btn");
 const downloadJpegliBtn = document.getElementById("download-jpegli-btn");
+const compressImagequantBtn = document.getElementById("compress-imagequant-btn");
+const downloadImagequantBtn = document.getElementById("download-imagequant-btn");
 const statusText = document.getElementById("status");
 const statsDiv = document.getElementById("stats");
 const imageList = document.getElementById("image-list");
 const statusPillMoz = document.getElementById("status-mozjpeg");
 const statusPillJpegli = document.getElementById("status-jpegli");
+const statusPillImagequant = document.getElementById("status-imagequant");
 const listActions = document.getElementById("list-actions");
 const clearAllBtn = document.getElementById("clear-all-btn");
 
@@ -19,8 +22,10 @@ const clearAllBtn = document.getElementById("clear-all-btn");
 const BYTES_PER_KB = 1024;
 const ENGINE_MOZJPEG = "MozJPEG";
 const ENGINE_JPEGLI = "Jpegli";
+const ENGINE_IMAGEQUANT = "libimagequant";
 const MODE_MOZJPEG = "mozjpeg";
 const MODE_JPEGLI = "jpegli";
+const MODE_IMAGEQUANT = "imagequant";
 const MODE_GENERAL = "general";
 const MSG_READY = "ready";
 const MSG_DONE = "done";
@@ -76,17 +81,44 @@ let jpegliConfig = {
   write_jfif: true,
 };
 
+let imagequantConfig = {
+  quality: 85,
+  min_quality: 55,
+  max_quality: 85,
+  strict_quality: false,
+  max_colors: 256,
+  speed: 4,
+  dithering: 1.0,
+  posterization: 0,
+  gamma: 0.0,
+  last_index_transparent: false,
+  auto_bit_depth: true,
+  filter_strategy: 0,
+  filter_palette_zero: true,
+  zlib_windowsize: 32768,
+  zlib_nicematch: 258,
+  zlib_lazymatching: true,
+  interlace: false,
+  strip_metadata: true,
+  write_srgb_chunk: true,
+};
+
 // ── Estado global ──
 let filesData = [];
 let mozPool = null;
 let jpegliPool = null;
+let imagequantPool = null;
 let isCompressing = false;
 let isMozReady = false;
 let isJpegliReady = false;
+let isImagequantReady = false;
 let mozHasError = false;
 let jpegliHasError = false;
+let imagequantHasError = false;
 let lastMozTime = null;
 let lastJpegliTime = null;
+let lastImagequantTime = null;
+let opaquePreference = null; // 'convert' | 'keep' | null
 
 // ── Helpers de UI ──
 function updateStatus(text, type = "default") {
@@ -119,15 +151,27 @@ function updateUI() {
   // Pills de estado de cada librería
   updateLibPill(statusPillMoz, isMozReady, mozHasError, "MozJPEG");
   updateLibPill(statusPillJpegli, isJpegliReady, jpegliHasError, "Jpegli");
+  updateLibPill(
+    statusPillImagequant,
+    isImagequantReady,
+    imagequantHasError,
+    "libimagequant",
+  );
 
   const validFiles = filesData.filter((f) => !f.isUnsupported);
   const hasFiles = validFiles.length > 0;
+  const hasJpegs = validFiles.some((f) => !f.isPng);
+  const hasPngs = validFiles.some((f) => f.isPng);
 
   // Botones de compresión (solo se tocan cuando no estamos comprimiendo)
   if (!isCompressing) {
-    compressBtn.disabled = !(hasFiles && (isMozReady || isJpegliReady));
-    compressMozBtn.disabled = !(hasFiles && isMozReady);
-    compressJpegliBtn.disabled = !(hasFiles && isJpegliReady);
+    compressBtn.disabled = !(
+      hasFiles &&
+      (isMozReady || isJpegliReady || isImagequantReady)
+    );
+    compressMozBtn.disabled = !(hasJpegs && isMozReady);
+    compressJpegliBtn.disabled = !(hasJpegs && isJpegliReady);
+    compressImagequantBtn.disabled = !(hasPngs && isImagequantReady);
   }
 
   // Botones de descarga
@@ -136,6 +180,8 @@ function updateUI() {
     !validFiles.some((f) => f.mozjpegBuffer) || isCompressing;
   downloadJpegliBtn.disabled =
     !validFiles.some((f) => f.jpegliBuffer) || isCompressing;
+  downloadImagequantBtn.disabled =
+    !validFiles.some((f) => f.imagequantBuffer) || isCompressing;
 
   // Barra de acciones de lista
   listActions.style.display = filesData.length > 0 ? "flex" : "none";
@@ -152,8 +198,10 @@ function updateUI() {
       const compareBtn = actionsDiv.querySelector(".compare-btn");
       const deleteBtn = actionsDiv.querySelector(".delete-btn");
       if (compareBtn) {
-        compareBtn.disabled =
-          isCompressing || (!f.mozjpegBuffer && !f.jpegliBuffer);
+        const canCompare = f.isPng
+          ? !!f.imagequantBuffer
+          : !!(f.mozjpegBuffer || f.jpegliBuffer);
+        compareBtn.disabled = isCompressing || !canCompare;
       }
       if (deleteBtn) {
         deleteBtn.disabled = isCompressing;
@@ -171,27 +219,42 @@ function updateUI() {
 
 // ── Stats globales ──
 function updateTotalStats(validFiles) {
-  let totalOriginal = 0,
-    totalBest = 0,
-    totalMoz = 0,
+  let totalOriginal = 0;
+  let totalOriginalBest = 0,
+    totalBest = 0;
+  let totalOriginalMoz = 0,
+    totalMoz = 0;
+  let totalOriginalJpegli = 0,
     totalJpegli = 0;
+  let totalOriginalImagequant = 0,
+    totalImagequant = 0;
+
   let hasBest = false,
     hasMoz = false,
-    hasJpegli = false;
+    hasJpegli = false,
+    hasImagequant = false;
 
   for (const f of validFiles) {
     totalOriginal += f.originalSize;
     if (f.bestSize) {
+      totalOriginalBest += f.originalSize;
       totalBest += f.bestSize;
       hasBest = true;
     }
     if (f.mozjpegSize) {
+      totalOriginalMoz += f.originalSize;
       totalMoz += f.mozjpegSize;
       hasMoz = true;
     }
     if (f.jpegliSize) {
+      totalOriginalJpegli += f.originalSize;
       totalJpegli += f.jpegliSize;
       hasJpegli = true;
+    }
+    if (f.imagequantSize) {
+      totalOriginalImagequant += f.originalSize;
+      totalImagequant += f.imagequantSize;
+      hasImagequant = true;
     }
   }
 
@@ -201,18 +264,23 @@ function updateTotalStats(validFiles) {
   }
 
   const toMB = (b) => (b / (1024 * 1024)).toFixed(2);
-  const toPct = (b) => ((1 - b / totalOriginal) * 100).toFixed(1);
+  const toPct = (compressed, original) =>
+    original > 0 ? ((1 - compressed / original) * 100).toFixed(1) : "0.0";
 
   let html = `<b>Total Original</b>: ${toMB(totalOriginal)} MB<br/>`;
   if (hasBest)
-    html += `<b>General (Mejor)</b>: ${toMB(totalBest)} MB | <b>Ahorro</b>: ${toPct(totalBest)}%<br/>`;
+    html += `<b>General (Mejor)</b>: ${toMB(totalBest)} MB | <b>Ahorro</b>: ${toPct(totalBest, totalOriginalBest)}%<br/>`;
   if (hasMoz) {
     const mozTimeStr = lastMozTime ? ` | Terminado en ${lastMozTime}s` : "";
-    html += `<span style="color:var(--accent-secondary)">MozJPEG</span>: ${toMB(totalMoz)} MB | Ahorro: ${toPct(totalMoz)}%${mozTimeStr}<br/>`;
+    html += `<span style="color:var(--accent-secondary)">MozJPEG</span>: ${toMB(totalMoz)} MB | Ahorro: ${toPct(totalMoz, totalOriginalMoz)}%${mozTimeStr}<br/>`;
   }
   if (hasJpegli) {
     const jpegliTimeStr = lastJpegliTime ? ` | Terminado en ${lastJpegliTime}s` : "";
-    html += `<span style="color:var(--accent-secondary)">Jpegli</span>: ${toMB(totalJpegli)} MB | Ahorro: ${toPct(totalJpegli)}%${jpegliTimeStr}<br/>`;
+    html += `<span style="color:var(--accent-secondary)">Jpegli</span>: ${toMB(totalJpegli)} MB | Ahorro: ${toPct(totalJpegli, totalOriginalJpegli)}%${jpegliTimeStr}<br/>`;
+  }
+  if (hasImagequant) {
+    const iqTimeStr = lastImagequantTime ? ` | Terminado en ${lastImagequantTime}s` : "";
+    html += `<span style="color:var(--accent-secondary)">libimagequant (PNG)</span>: ${toMB(totalImagequant)} MB | Ahorro: ${toPct(totalImagequant, totalOriginalImagequant)}%${iqTimeStr}<br/>`;
   }
 
   statsDiv.innerHTML = html;
@@ -285,11 +353,7 @@ class WorkerPool {
       available.busy = false;
 
       if (e.data.type === "done") {
-        task.resolve({
-          buffer: e.data.buffer,
-          originalSize: e.data.originalSize,
-          compressedSize: e.data.compressedSize,
-        });
+        task.resolve(e.data);
       } else {
         task.reject(new Error(e.data.message));
       }
@@ -318,6 +382,16 @@ function initWorkers() {
     jpegliHasError = jpegliPool.hasError;
     updateUI();
   });
+
+  imagequantPool = new WorkerPool(
+    "./engines/imagequant/worker.js",
+    POOL_SIZE,
+    () => {
+      isImagequantReady = imagequantPool.isReady();
+      imagequantHasError = imagequantPool.hasError;
+      updateUI();
+    },
+  );
 
   updateUI();
 }
@@ -369,11 +443,21 @@ function compressImageJpegli(buffer) {
   );
 }
 
+// ── Compresión con libimagequant vía WorkerPool ──
+function compressImagequant(buffer) {
+  return imagequantPool.runTask(
+    { imageBuffer: buffer, config: imagequantConfig },
+    [buffer], // transferable: evita copiar el ArrayBuffer
+  );
+}
+
 // ── Manejo de archivos ──
 function handleFiles(newFiles) {
   if (isCompressing) return;
 
   const seenInBatch = new Set();
+  const pendingOpaquePngs = [];
+
   for (const file of newFiles) {
     const fileKey = `${file.name}_${file.size}`;
     if (
@@ -389,40 +473,186 @@ function handleFiles(newFiles) {
     seenInBatch.add(fileKey);
 
     const fileId = crypto.randomUUID();
+    const isJpeg = file.type === "image/jpeg";
+    const isPng = file.type === "image/png";
 
-    if (file.type !== "image/jpeg") {
+    if (!isJpeg && !isPng) {
       filesData.push({
         id: fileId,
         originalFile: file,
         isUnsupported: true,
-        errorMessage: `Omitido "${file.name}": formato no soportado`,
+        errorMessage: `Omitido "${file.name}": formato no soportado (solo JPEG y PNG)`,
       });
       renderList();
       continue;
     }
 
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      filesData.push({
+    reader.onload = async (ev) => {
+      const originalBuffer = ev.target.result;
+      const previewUrl = URL.createObjectURL(file);
+
+      if (isJpeg) {
+        filesData.push({
+          id: fileId,
+          originalFile: file,
+          originalBuffer,
+          originalSize: file.size,
+          previewUrl,
+          isPng: false,
+          hasAlpha: false,
+          mozjpegBuffer: null,
+          mozjpegSize: null,
+          jpegliBuffer: null,
+          jpegliSize: null,
+          imagequantBuffer: null,
+          imagequantSize: null,
+          bestBuffer: null,
+          bestSize: null,
+          bestLib: null,
+        });
+
+        renderList();
+        updateUI();
+
+        const validCount = filesData.filter((f) => !f.isUnsupported).length;
+        updateStatus(`Imágenes cargadas: ${validCount}`, "info");
+        return;
+      }
+
+      // Es archivo PNG: analizamos si contiene capa de transparencia
+      let hasAlpha = false;
+      let canvas = null;
+      try {
+        const img = new Image();
+        img.src = previewUrl;
+        await img.decode();
+        canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const d = imgData.data;
+        for (let i = 3; i < d.length; i += 4) {
+          if (d[i] < 255) {
+            hasAlpha = true;
+            break;
+          }
+        }
+      } catch (err) {
+        console.warn("No se pudo inspeccionar canal alfa, asumiendo con transparencia:", err);
+        hasAlpha = true;
+      }
+
+      // Si es PNG opaco y el usuario ya eligió recordar convertir a JPG
+      if (!hasAlpha && opaquePreference === "convert" && canvas) {
+        const jpegBlob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.95));
+        const jpegBuffer = await jpegBlob.arrayBuffer();
+        const baseName = file.name.replace(/\.png$/i, "");
+        const convertedFile = new File([jpegBlob], `${baseName}.jpg`, { type: "image/jpeg" });
+        URL.revokeObjectURL(previewUrl);
+
+        filesData.push({
+          id: fileId,
+          originalFile: convertedFile,
+          originalBuffer: jpegBuffer,
+          originalSize: jpegBlob.size,
+          previewUrl: URL.createObjectURL(jpegBlob),
+          isPng: false,
+          hasAlpha: false,
+          mozjpegBuffer: null,
+          mozjpegSize: null,
+          jpegliBuffer: null,
+          jpegliSize: null,
+          imagequantBuffer: null,
+          imagequantSize: null,
+          imagequantQuality: null,
+          imagequantColors: null,
+          imagequantBitDepth: null,
+          imagequantMse: null,
+          bestBuffer: null,
+          bestSize: null,
+          bestLib: null,
+        });
+
+        renderList();
+        updateUI();
+        const validCount = filesData.filter((f) => !f.isUnsupported).length;
+        updateStatus(`Imágenes cargadas: ${validCount}`, "info");
+        return;
+      }
+
+      // Guardar entrada como PNG
+      const fileEntry = {
         id: fileId,
         originalFile: file,
-        originalBuffer: ev.target.result,
+        originalBuffer,
         originalSize: file.size,
-        previewUrl: URL.createObjectURL(file),
+        previewUrl,
+        isPng: true,
+        hasAlpha,
         mozjpegBuffer: null,
         mozjpegSize: null,
         jpegliBuffer: null,
         jpegliSize: null,
+        imagequantBuffer: null,
+        imagequantSize: null,
+        imagequantQuality: null,
+        imagequantColors: null,
+        imagequantBitDepth: null,
+        imagequantMse: null,
         bestBuffer: null,
         bestSize: null,
         bestLib: null,
-      });
+      };
+      filesData.push(fileEntry);
+
+      if (!hasAlpha && opaquePreference === null && canvas) {
+        pendingOpaquePngs.push({ fileEntry, canvas });
+      }
 
       renderList();
       updateUI();
 
       const validCount = filesData.filter((f) => !f.isUnsupported).length;
       updateStatus(`Imágenes cargadas: ${validCount}`, "info");
+
+      // Si hay PNGs opacos y no hay preferencia guardada, preguntar al usuario
+      if (pendingOpaquePngs.length > 0 && typeof window.showOpaquePngModal === "function") {
+        setTimeout(() => {
+          if (pendingOpaquePngs.length === 0) return;
+          const count = pendingOpaquePngs.length;
+          window.showOpaquePngModal(
+            count,
+            async (remember) => {
+              if (remember) opaquePreference = "convert";
+              for (const { fileEntry, canvas } of pendingOpaquePngs) {
+                const jpegBlob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.95));
+                const jpegBuffer = await jpegBlob.arrayBuffer();
+                const baseName = fileEntry.originalFile.name.replace(/\.png$/i, "");
+                const convertedFile = new File([jpegBlob], `${baseName}.jpg`, { type: "image/jpeg" });
+                if (fileEntry.previewUrl) URL.revokeObjectURL(fileEntry.previewUrl);
+
+                fileEntry.originalFile = convertedFile;
+                fileEntry.originalBuffer = jpegBuffer;
+                fileEntry.originalSize = jpegBlob.size;
+                fileEntry.previewUrl = URL.createObjectURL(jpegBlob);
+                fileEntry.isPng = false;
+                fileEntry.hasAlpha = false;
+                updateFileDOM(fileEntry);
+              }
+              pendingOpaquePngs.length = 0;
+              renderList();
+              updateUI();
+            },
+            (remember) => {
+              if (remember) opaquePreference = "keep";
+              pendingOpaquePngs.length = 0;
+            },
+          );
+        }, 120);
+      }
     };
     reader.readAsArrayBuffer(file);
   }
@@ -493,8 +723,10 @@ function createFileElement(file) {
   const compareBtn = document.createElement("button");
   compareBtn.className = "compare-btn";
   compareBtn.textContent = "Comparar";
-  compareBtn.disabled =
-    isCompressing || (!file.mozjpegBuffer && !file.jpegliBuffer);
+  const canCompare = file.isPng
+    ? !!file.imagequantBuffer
+    : !!(file.mozjpegBuffer || file.jpegliBuffer);
+  compareBtn.disabled = isCompressing || !canCompare;
   compareBtn.onclick = () => {
     if (window.openCompareModal) window.openCompareModal(file.id);
   };
@@ -551,11 +783,31 @@ function updateFileDOM(file) {
   }
   html += `</div>`;
 
-  if (file.mozjpegSize) {
-    html += `<div style="font-size:0.85em;color:var(--text-secondary)">${ENGINE_MOZJPEG}: ${toKB(file.mozjpegSize)} KB (-${toPct(file.mozjpegSize)}%)</div>`;
-  }
-  if (file.jpegliSize) {
-    html += `<div style="font-size:0.85em;color:var(--text-secondary)">${ENGINE_JPEGLI}: ${toKB(file.jpegliSize)} KB (-${toPct(file.jpegliSize)}%)</div>`;
+  if (file.isPng) {
+    if (file.imagequantSize) {
+      const details = [];
+      if (typeof file.imagequantQuality === "number" && file.imagequantQuality >= 0) {
+        details.push(`Calidad: ${file.imagequantQuality}/100`);
+      }
+      if (typeof file.imagequantColors === "number" && file.imagequantColors > 0) {
+        details.push(`${file.imagequantColors} cols`);
+      }
+      if (typeof file.imagequantBitDepth === "number" && file.imagequantBitDepth > 0) {
+        details.push(`${file.imagequantBitDepth}-bit`);
+      }
+      if (typeof file.imagequantMse === "number" && file.imagequantMse > 0) {
+        details.push(`MSE: ${file.imagequantMse.toFixed(1)}`);
+      }
+      const detailsStr = details.length > 0 ? ` · ${details.join(" · ")}` : "";
+      html += `<div style="font-size:0.85em;color:var(--text-secondary)">${ENGINE_IMAGEQUANT}: ${toKB(file.imagequantSize)} KB (-${toPct(file.imagequantSize)}%)${detailsStr}</div>`;
+    }
+  } else {
+    if (file.mozjpegSize) {
+      html += `<div style="font-size:0.85em;color:var(--text-secondary)">${ENGINE_MOZJPEG}: ${toKB(file.mozjpegSize)} KB (-${toPct(file.mozjpegSize)}%)</div>`;
+    }
+    if (file.jpegliSize) {
+      html += `<div style="font-size:0.85em;color:var(--text-secondary)">${ENGINE_JPEGLI}: ${toKB(file.jpegliSize)} KB (-${toPct(file.jpegliSize)}%)</div>`;
+    }
   }
 
   statsEl.innerHTML = html;
@@ -564,8 +816,10 @@ function updateFileDOM(file) {
   if (actionsDiv) {
     const compareBtn = actionsDiv.querySelector(".compare-btn");
     if (compareBtn) {
-      compareBtn.disabled =
-        isCompressing || (!file.mozjpegBuffer && !file.jpegliBuffer);
+      const canCompare = file.isPng
+        ? !!file.imagequantBuffer
+        : !!(file.mozjpegBuffer || file.jpegliBuffer);
+      compareBtn.disabled = isCompressing || !canCompare;
     }
   }
 }
@@ -574,6 +828,16 @@ function updateFileDOM(file) {
 function updateBestResult(f) {
   f.bestSize = f.bestBuffer = f.bestLib = null;
 
+  if (f.isPng) {
+    if (f.imagequantBuffer) {
+      f.bestSize = f.imagequantSize;
+      f.bestBuffer = f.imagequantBuffer;
+      f.bestLib = "libimagequant";
+    }
+    return;
+  }
+
+  // Para JPEG
   if (f.mozjpegSize && f.jpegliSize) {
     const jpegliWins = f.jpegliSize < f.mozjpegSize;
     f.bestSize = jpegliWins ? f.jpegliSize : f.mozjpegSize;
@@ -595,20 +859,43 @@ async function doCompression(mode) {
   const validFiles = filesData.filter((f) => !f.isUnsupported);
   if (validFiles.length === 0) return;
 
+  const targetJpegs = validFiles.filter((f) => !f.isPng);
+  const targetPngs = validFiles.filter((f) => f.isPng);
+
+  if (mode === "mozjpeg" && targetJpegs.length === 0) {
+    updateStatus("No hay imágenes JPEG para procesar con MozJPEG", "warning");
+    return;
+  }
+  if (mode === "jpegli" && targetJpegs.length === 0) {
+    updateStatus("No hay imágenes JPEG para procesar con Jpegli", "warning");
+    return;
+  }
+  if (mode === "imagequant" && targetPngs.length === 0) {
+    updateStatus("No hay imágenes PNG para procesar con libimagequant", "warning");
+    return;
+  }
+
   isCompressing = true;
   if (mode === "general" || mode === "mozjpeg") lastMozTime = null;
   if (mode === "general" || mode === "jpegli") lastJpegliTime = null;
+  if (mode === "general" || mode === "imagequant") lastImagequantTime = null;
   updateUI();
 
-  const totalCount = validFiles.length;
-  updateStatus(`Comprimiendo ${totalCount} imágenes en paralelo...`, "warning");
+  const activeCount =
+    mode === "mozjpeg" || mode === "jpegli"
+      ? targetJpegs.length
+      : mode === "imagequant"
+      ? targetPngs.length
+      : validFiles.length;
+
+  updateStatus(`Comprimiendo ${activeCount} imágenes en paralelo...`, "warning");
 
   const startTime = performance.now();
 
   const mozPromise =
-    (mode === "mozjpeg" || mode === "general") && isMozReady
+    (mode === "mozjpeg" || mode === "general") && isMozReady && targetJpegs.length > 0
       ? Promise.allSettled(
-          validFiles.map(async (f) => {
+          targetJpegs.map(async (f) => {
             try {
               const res = await compressImageMoz(f.originalBuffer.slice(0));
               f.mozjpegBuffer = res.buffer;
@@ -629,9 +916,9 @@ async function doCompression(mode) {
       : Promise.resolve();
 
   const jpegliPromise =
-    (mode === "jpegli" || mode === "general") && isJpegliReady
+    (mode === "jpegli" || mode === "general") && isJpegliReady && targetJpegs.length > 0
       ? Promise.allSettled(
-          validFiles.map(async (f) => {
+          targetJpegs.map(async (f) => {
             try {
               const res = await compressImageJpegli(f.originalBuffer.slice(0));
               f.jpegliBuffer = res.buffer;
@@ -651,7 +938,34 @@ async function doCompression(mode) {
         })
       : Promise.resolve();
 
-  await Promise.all([mozPromise, jpegliPromise]);
+  const imagequantPromise =
+    (mode === "imagequant" || mode === "general") && isImagequantReady && targetPngs.length > 0
+      ? Promise.allSettled(
+          targetPngs.map(async (f) => {
+            try {
+              const res = await compressImagequant(f.originalBuffer.slice(0));
+              f.imagequantBuffer = res.buffer;
+              f.imagequantSize = res.compressedSize;
+              f.imagequantQuality = res.attainedQuality;
+              f.imagequantColors = res.paletteColors;
+              f.imagequantBitDepth = res.outputBitDepth;
+              f.imagequantMse = res.mseError;
+              updateBestResult(f);
+              updateFileDOM(f);
+              updateTotalStats(validFiles);
+              return res;
+            } catch (err) {
+              console.warn(`libimagequant falló para "${f.originalFile.name}":`, err);
+              throw err;
+            }
+          }),
+        ).then(() => {
+          lastImagequantTime = ((performance.now() - startTime) / 1000).toFixed(2);
+          updateTotalStats(validFiles);
+        })
+      : Promise.resolve();
+
+  await Promise.all([mozPromise, jpegliPromise, imagequantPromise]);
 
   const successCount = validFiles.filter((f) => f.bestBuffer).length;
   isCompressing = false;
@@ -672,10 +986,18 @@ async function doCompression(mode) {
 
 // Tabla de acceso a buffers según el modo de descarga
 const BUFFER_GETTER = {
-  general: (f) => f.bestBuffer && { buffer: f.bestBuffer, lib: f.bestLib },
+  general: (f) =>
+    f.bestBuffer && { buffer: f.bestBuffer, lib: f.bestLib, isPng: f.isPng },
   mozjpeg: (f) =>
-    f.mozjpegBuffer && { buffer: f.mozjpegBuffer, lib: "MozJPEG" },
-  jpegli: (f) => f.jpegliBuffer && { buffer: f.jpegliBuffer, lib: "Jpegli" },
+    f.mozjpegBuffer && { buffer: f.mozjpegBuffer, lib: "MozJPEG", isPng: false },
+  jpegli: (f) =>
+    f.jpegliBuffer && { buffer: f.jpegliBuffer, lib: "Jpegli", isPng: false },
+  imagequant: (f) =>
+    f.imagequantBuffer && {
+      buffer: f.imagequantBuffer,
+      lib: "libimagequant",
+      isPng: true,
+    },
 };
 
 // Crea un <a> temporal, dispara la descarga y libera la URL.
@@ -687,12 +1009,7 @@ function triggerDownload(url, filename) {
   URL.revokeObjectURL(url);
 }
 
-async function doDownload(mode) {
-  const getter = BUFFER_GETTER[mode];
-  const filesToDownload = filesData
-    .map((f) => ({ name: f.originalFile.name, ...getter(f) }))
-    .filter((f) => f.buffer);
-
+async function executeDownload(filesToDownload, modeName) {
   if (filesToDownload.length === 0) return;
 
   if (filesToDownload.length === 1) {
@@ -702,10 +1019,10 @@ async function doDownload(mode) {
         ? f.name.slice(0, f.name.lastIndexOf("."))
         : f.name;
     const suffix = f.lib ? `-${f.lib.toLowerCase()}` : "";
-    const url = URL.createObjectURL(
-      new Blob([f.buffer], { type: "image/jpeg" }),
-    );
-    triggerDownload(url, `${base}${suffix}-compressed.jpg`);
+    const ext = f.isPng ? "png" : "jpg";
+    const mime = f.isPng ? "image/png" : "image/jpeg";
+    const url = URL.createObjectURL(new Blob([f.buffer], { type: mime }));
+    triggerDownload(url, `${base}${suffix}-compressed.${ext}`);
     return;
   }
 
@@ -714,11 +1031,70 @@ async function doDownload(mode) {
     const zip = new JSZip();
     filesToDownload.forEach((f) => zip.file(f.name, f.buffer));
     const url = URL.createObjectURL(await zip.generateAsync({ type: "blob" }));
-    triggerDownload(url, `compressed-${mode}.zip`);
-    updateStatus(`¡ZIP ${mode} descargado!`, "success");
+    triggerDownload(url, `compressed-${modeName}.zip`);
+    updateStatus(`¡ZIP ${modeName} descargado!`, "success");
   } catch (err) {
     console.error(err);
     updateStatus("Error al generar el ZIP", "error");
+  }
+}
+
+async function doDownload(mode) {
+  if (mode === "general") {
+    const getter = BUFFER_GETTER.general;
+    const filesToDownload = filesData
+      .map((f) => ({ name: f.originalFile.name, ...getter(f) }))
+      .filter((f) => f.buffer);
+    await executeDownload(filesToDownload, "all");
+    return;
+  }
+
+  // Descarga de motor específico (mozjpeg, jpegli, imagequant)
+  const engineGetter = BUFFER_GETTER[mode];
+  const engineFiles = filesData
+    .map((f) => ({ name: f.originalFile.name, ...engineGetter(f) }))
+    .filter((f) => f.buffer);
+
+  if (engineFiles.length === 0) return;
+
+  // Comprobar si hay archivos comprimidos del otro formato en la lista
+  const isTargetPng = mode === "imagequant";
+  const otherFormatFiles = filesData
+    .filter((f) => (isTargetPng ? !f.isPng : f.isPng))
+    .map((f) => ({ name: f.originalFile.name, ...BUFFER_GETTER.general(f) }))
+    .filter((f) => f.buffer);
+
+  if (
+    otherFormatFiles.length > 0 &&
+    typeof window.showMixedDownloadModal === "function"
+  ) {
+    const engineName =
+      mode === "mozjpeg"
+        ? "MozJPEG"
+        : mode === "jpegli"
+        ? "Jpegli"
+        : "libimagequant (PNG)";
+
+    window.showMixedDownloadModal(
+      engineName,
+      {
+        engineCount: engineFiles.length,
+        totalCount: engineFiles.length + otherFormatFiles.length,
+      },
+      async (choice) => {
+        if (choice === "engine-only") {
+          await executeDownload(engineFiles, mode);
+        } else {
+          await executeDownload(
+            [...engineFiles, ...otherFormatFiles],
+            `${mode}-mixed`,
+          );
+        }
+      },
+    );
+  } else {
+    // Si no hay archivos del otro formato, descarga directa
+    await executeDownload(engineFiles, mode);
   }
 }
 
@@ -726,7 +1102,11 @@ async function doDownload(mode) {
 dropZone.addEventListener("dragover", (e) => {
   e.preventDefault();
   const hasInvalid = Array.from(e.dataTransfer.items || []).some(
-    (item) => item.kind === "file" && item.type && item.type !== "image/jpeg",
+    (item) =>
+      item.kind === "file" &&
+      item.type &&
+      item.type !== "image/jpeg" &&
+      item.type !== "image/png",
   );
   if (hasInvalid) {
     dropZone.classList.add("dragover-error");
@@ -744,12 +1124,14 @@ dropZone.addEventListener("drop", (e) => {
   dropZone.classList.remove("dragover", "dragover-error");
   if (e.dataTransfer.files.length) {
     const files = Array.from(e.dataTransfer.files);
-    const hasInvalid = files.some((f) => f.type !== "image/jpeg");
+    const hasInvalid = files.some(
+      (f) => f.type !== "image/jpeg" && f.type !== "image/png",
+    );
     if (hasInvalid) {
       dropZone.classList.add("drop-error-flash");
       setTimeout(() => dropZone.classList.remove("drop-error-flash"), 1200);
       updateStatus(
-        "Advertencia: Se omitieron archivos no válidos (solo se soportan imágenes JPEG)",
+        "Advertencia: Se omitieron archivos no válidos (solo se soportan imágenes JPEG y PNG)",
         "warning",
       );
     }
@@ -779,6 +1161,7 @@ clearAllBtn.addEventListener("click", () => {
   filesData = [];
   lastMozTime = null;
   lastJpegliTime = null;
+  lastImagequantTime = null;
   renderList();
   updateUI();
   updateStatus("Esperando imágenes...", "default");
@@ -787,10 +1170,16 @@ clearAllBtn.addEventListener("click", () => {
 compressBtn.addEventListener("click", () => doCompression("general"));
 compressMozBtn.addEventListener("click", () => doCompression("mozjpeg"));
 compressJpegliBtn.addEventListener("click", () => doCompression("jpegli"));
+compressImagequantBtn.addEventListener("click", () =>
+  doCompression("imagequant"),
+);
 
 downloadBtn.addEventListener("click", () => doDownload("general"));
 downloadMozBtn.addEventListener("click", () => doDownload("mozjpeg"));
 downloadJpegliBtn.addEventListener("click", () => doDownload("jpegli"));
+downloadImagequantBtn.addEventListener("click", () =>
+  doDownload("imagequant"),
+);
 
 // ── Arranque ──
 initWorkers();

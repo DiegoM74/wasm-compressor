@@ -6,6 +6,7 @@ Thumbs.db
 src/mozjpeg/
 src/jpegli/
 src/libavif/
+src/imagequant/
 
 # Build intermedios
 build/
