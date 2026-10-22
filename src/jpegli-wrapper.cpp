@@ -17,6 +17,8 @@ extern "C" {
 CompressedResult* compress_image_jpegli(
     unsigned char* input_buffer,
     int input_size,
+    int raw_width,
+    int raw_height,
     int quality,               // ignorado si use_distance=1
     float distance,            // butteraugli distance; rango útil: 0.5–3.0 (1.0 ≈ q90)
     int use_distance,          // 1 = usar distance, 0 = usar quality
@@ -35,24 +37,35 @@ CompressedResult* compress_image_jpegli(
     g_result.data = NULL;
     g_result.size = 0;
 
-    // ── Inicializar decodificador con Jpegli ──────────────────────────────
+    int is_raw = (raw_width > 0 && raw_height > 0);
+    int width = 0;
+    int height = 0;
+    int components = 0;
+
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
 
-    cinfo.err = jpegli_std_error(&jerr);
-    jpegli_create_decompress(&cinfo);
+    if (is_raw) {
+        width = raw_width;
+        height = raw_height;
+        components = 4; // RGBA crudo
+    } else {
+        // ── Inicializar decodificador con Jpegli ──────────────────────────────
+        cinfo.err = jpegli_std_error(&jerr);
+        jpegli_create_decompress(&cinfo);
 
-    jpegli_mem_src(&cinfo, input_buffer, input_size);
-    if (jpegli_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
-        jpegli_destroy_decompress(&cinfo);
-        return &g_result;
+        jpegli_mem_src(&cinfo, input_buffer, input_size);
+        if (jpegli_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
+            jpegli_destroy_decompress(&cinfo);
+            return &g_result;
+        }
+
+        jpegli_start_decompress(&cinfo);
+
+        width      = cinfo.output_width;
+        height     = cinfo.output_height;
+        components = cinfo.output_components;
     }
-
-    jpegli_start_decompress(&cinfo);
-
-    int width      = cinfo.output_width;
-    int height     = cinfo.output_height;
-    int components = cinfo.output_components;
 
     // ── Inicializar codificador con Jpegli ────────────────────────────────
     struct jpeg_compress_struct cinfo_out;
@@ -68,7 +81,7 @@ CompressedResult* compress_image_jpegli(
     cinfo_out.image_width      = width;
     cinfo_out.image_height     = height;
     cinfo_out.input_components = components;
-    cinfo_out.in_color_space   = (components == 3) ? JCS_RGB : JCS_GRAYSCALE;
+    cinfo_out.in_color_space   = (components == 4) ? JCS_EXT_RGBA : ((components == 3) ? JCS_RGB : JCS_GRAYSCALE);
 
     // ── Llamadas que DEBEN ir antes de jpegli_set_defaults() ───────────────
 
@@ -77,8 +90,8 @@ CompressedResult* compress_image_jpegli(
         jpegli_use_standard_quant_tables(&cinfo_out);
     }
 
-    // Espacio de color XYB — solo RGB, produce archivo JPEG estándar compatible
-    if (xyb_mode && components == 3) {
+    // Espacio de color XYB — solo RGB / RGBA, produce archivo JPEG estándar compatible
+    if (xyb_mode && (components == 3 || components == 4)) {
         jpegli_set_xyb_mode(&cinfo_out);
     }
 
@@ -113,7 +126,7 @@ CompressedResult* compress_image_jpegli(
     cinfo_out.dct_method = method;
 
     // ── Subsampling de croma (después de set_defaults) ─────────────────────
-    if (components == 3) {
+    if (components == 3 || components == 4) {
         if (subsampling == 2) {        // 4:2:0
             cinfo_out.comp_info[0].h_samp_factor = 2;
             cinfo_out.comp_info[0].v_samp_factor = 2;
@@ -135,37 +148,52 @@ CompressedResult* compress_image_jpegli(
     // ── Iniciar compresión ────────────────────────────────────────────────
     jpegli_start_compress(&cinfo_out, TRUE);
 
-    // ── Streaming de scanlines por bloques (elimina búfer RGB global) ──────
     #define JPEGLI_CHUNK_LINES 16
     int stride = width * components;
     JSAMPROW row_pointers[JPEGLI_CHUNK_LINES];
-    unsigned char *chunk_buffer = (unsigned char *)malloc(stride * JPEGLI_CHUNK_LINES);
-    if (!chunk_buffer) {
-        jpegli_destroy_compress(&cinfo_out);
-        jpegli_destroy_decompress(&cinfo);
-        return &g_result;
-    }
 
-    for (int i = 0; i < JPEGLI_CHUNK_LINES; i++) {
-        row_pointers[i] = chunk_buffer + i * stride;
-    }
-
-    while (cinfo_out.next_scanline < cinfo_out.image_height) {
-        JDIMENSION lines_to_read = JPEGLI_CHUNK_LINES;
-        if (cinfo.output_scanline + lines_to_read > cinfo.output_height) {
-            lines_to_read = cinfo.output_height - cinfo.output_scanline;
+    if (is_raw) {
+        /* Entrada de píxeles crudos (RGBA): alimentamos scanlines directamente desde input_buffer */
+        while (cinfo_out.next_scanline < cinfo_out.image_height) {
+            JDIMENSION lines_to_write = JPEGLI_CHUNK_LINES;
+            if (cinfo_out.next_scanline + lines_to_write > cinfo_out.image_height) {
+                lines_to_write = cinfo_out.image_height - cinfo_out.next_scanline;
+            }
+            for (JDIMENSION i = 0; i < lines_to_write; i++) {
+                row_pointers[i] = (JSAMPROW)(input_buffer + (cinfo_out.next_scanline + i) * stride);
+            }
+            jpegli_write_scanlines(&cinfo_out, row_pointers, lines_to_write);
+        }
+    } else {
+        // ── Streaming de scanlines por bloques (elimina búfer RGB global) ──────
+        unsigned char *chunk_buffer = (unsigned char *)malloc(stride * JPEGLI_CHUNK_LINES);
+        if (!chunk_buffer) {
+            jpegli_destroy_compress(&cinfo_out);
+            jpegli_destroy_decompress(&cinfo);
+            return &g_result;
         }
 
-        JDIMENSION lines_read = jpegli_read_scanlines(&cinfo, row_pointers, lines_to_read);
-        if (lines_read == 0) break;
-        jpegli_write_scanlines(&cinfo_out, row_pointers, lines_read);
+        for (int i = 0; i < JPEGLI_CHUNK_LINES; i++) {
+            row_pointers[i] = chunk_buffer + i * stride;
+        }
+
+        while (cinfo_out.next_scanline < cinfo_out.image_height) {
+            JDIMENSION lines_to_read = JPEGLI_CHUNK_LINES;
+            if (cinfo.output_scanline + lines_to_read > cinfo.output_height) {
+                lines_to_read = cinfo.output_height - cinfo.output_scanline;
+            }
+
+            JDIMENSION lines_read = jpegli_read_scanlines(&cinfo, row_pointers, lines_to_read);
+            if (lines_read == 0) break;
+            jpegli_write_scanlines(&cinfo_out, row_pointers, lines_read);
+        }
+
+        free(chunk_buffer);
+
+        jpegli_finish_decompress(&cinfo);
+        jpegli_destroy_decompress(&cinfo);
     }
-
-    free(chunk_buffer);
     #undef JPEGLI_CHUNK_LINES
-
-    jpegli_finish_decompress(&cinfo);
-    jpegli_destroy_decompress(&cinfo);
 
     jpegli_finish_compress(&cinfo_out);
     jpegli_destroy_compress(&cinfo_out);

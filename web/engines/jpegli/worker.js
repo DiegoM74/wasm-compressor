@@ -37,17 +37,25 @@ self.onmessage = function (e) {
     return;
   }
 
-  const { imageBuffer, config } = e.data;
+  const { imageBuffer, config, width = 0, height = 0, isRaw = false } = e.data;
 
   // Validaciones tempranas
   if (!imageBuffer || imageBuffer.byteLength === 0) {
     self.postMessage({ type: "error", message: "Buffer vacío" });
     return;
   }
-  const magic = new Uint8Array(imageBuffer, 0, 2);
-  if (magic[0] !== 0xff || magic[1] !== 0xd8) {
-    self.postMessage({ type: "error", message: "No es un JPEG válido" });
-    return;
+
+  if (isRaw) {
+    if (width <= 0 || height <= 0 || imageBuffer.byteLength !== width * height * 4) {
+      self.postMessage({ type: "error", message: "Dimensiones o búfer RGBA inválidos" });
+      return;
+    }
+  } else {
+    const magic = new Uint8Array(imageBuffer, 0, 2);
+    if (magic[0] !== 0xff || magic[1] !== 0xd8) {
+      self.postMessage({ type: "error", message: "No es un JPEG válido" });
+      return;
+    }
   }
 
   try {
@@ -67,6 +75,8 @@ self.onmessage = function (e) {
       [
         "number", // input_buffer (ptr)
         "number", // input_size
+        "number", // raw_width
+        "number", // raw_height
         "number", // quality
         "number", // distance (float — ccall lo convierte correctamente)
         "number", // use_distance
@@ -85,6 +95,8 @@ self.onmessage = function (e) {
       [
         inputPtr,
         imageBuffer.byteLength,
+        isRaw ? width : 0,
+        isRaw ? height : 0,
         config.quality,
         config.use_distance ? config.distance : 1.0,
         config.use_distance ? 1 : 0,

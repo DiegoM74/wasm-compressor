@@ -14,34 +14,38 @@ Usuario sube imágenes (JPEG o PNG)
        ▼
   main.js: handleFiles()
   Valida magic bytes (JPEG: 0xFF 0xD8 / PNG: 0x89 0x50 0x4E 0x47)
-  Lee archivos como ArrayBuffer, detecta canal alfa en PNGs, almacena en filesData[]
+  Detecta canal alfa en PNGs. Si es opaco, ofrece convertir a JPG o mantener como PNG.
+  Conserva SIEMPRE el archivo y búfer original (PNG o JPEG intacto).
        │
        ▼
   main.js: doCompression(mode)
-  Despacha concurrentemente vía Promise.allSettled() según el tipo de archivo:
+  Despacha concurrentemente vía Promise.allSettled() según el tipo y preferencia:
        │
        ├───────────────────────────────┬───────────────────────────────┐
        ▼                               ▼                               ▼
   mozPool.runTask(...)            jpegliPool.runTask(...)         imagequantPool.runTask(...)
   [Pool de N Workers MozJPEG]     [Pool de N Workers Jpegli]      [Pool de N Workers libimagequant]
-  (Solo archivos JPEG)            (Solo archivos JPEG)            (Solo archivos PNG)
+  (Archivos JPEG y PNGs opacos    (Archivos JPEG y PNGs opacos    (Archivos PNG translúcidos
+   marcados como convertToJpeg)    marcados como convertToJpeg)    o mantenidos como PNG)
   postMessage({imageBuffer, ...}) postMessage({buffer, config})   postMessage({buffer, config})
   [buffer transferible .slice(0)] [buffer transferible .slice(0)] [buffer transferible .slice(0)]
        │                               │                               │
        ▼                               ▼                               ▼
   engines/mozjpeg/worker.js       engines/jpegli/worker.js        engines/imagequant/worker.js
-  - Valida JPEG magic bytes       - Valida JPEG magic bytes       - Valida PNG magic bytes
-  - _malloc + copia a heap WASM   - _malloc + copia a heap WASM   - _malloc + copia a heap WASM
-  - Llama _compress_image()       - Llama ccall("compress_..._    - Llama ccall("compress_..._
-    (parámetros planos)             jpegli", config)                imagequant", 20 parámetros)
-  - Wrapper C: Streaming          - Wrapper C++: Streaming        - Wrapper C: Decodifica RGBA32,
-    por bloques (16 scanlines)      por bloques (16 scanlines)      cuantiza paleta (K-means/median),
-    de decodificador a codificador  de decodificador a codificador  tramado, remapeo, LodePNG Deflate
-  - Lee struct resultado          - Lee struct resultado          - Lee struct resultado (24 bytes)
-    (ptr@0, size@4)                 (ptr@0, size@4)                 (ptr@0, size@4, quality@8, ...)
-  - .slice() del output           - .slice() del output           - .slice() del output
-  - postMessage({type:"done"})    - postMessage({type:"done"})    - postMessage({type:"done", ...})
-  - [buffer transferido]          - [buffer transferido]          - [buffer transferido + métricas]
+  - Si es JPEG: valida 0xFF 0xD8  - Si es JPEG: valida 0xFF 0xD8  - Valida PNG magic bytes
+  - Si es RAW (PNG opaco):        - Si es RAW (PNG opaco):        - _malloc + copia a heap WASM
+    recibe RGBA + width + height    recibe RGBA + width + height  - Llama ccall("compress_..._
+  - _malloc + copia a heap WASM   - _malloc + copia a heap WASM     imagequant", 20 parámetros)
+  - Llama _compress_image()       - Llama ccall("compress_..._    - Wrapper C: Decodifica RGBA32,
+    (con raw_width y raw_height)    jpegli", config, raw_w/h)       cuantiza paleta (K-means/median),
+  - Wrapper C: Streaming scanlines- Wrapper C++: Streaming scan-    tramado, remapeo, LodePNG Deflate
+    por bloques (16 scanlines)      lines por bloques (16 líneas) - Lee struct resultado (24 bytes)
+    (directo de RGBA o descomp.)    (directo de RGBA o descomp.)    (ptr@0, size@4, quality@8, ...)
+  - Lee struct resultado          - Lee struct resultado          - .slice() del output
+    (ptr@0, size@4)                 (ptr@0, size@4)               - postMessage({type:"done", ...})
+  - .slice() del output           - .slice() del output           - [buffer transferido + métricas]
+  - postMessage({type:"done"})    - postMessage({type:"done"})
+  - [buffer transferido]          - [buffer transferido]
        │                               │                               │
        └───────────────────────────────┴───────────────────────────────┘
                                        │
@@ -49,12 +53,14 @@ Usuario sube imágenes (JPEG o PNG)
   main.js: compara tamaños, asigna bestBuffer/bestLib, actualiza DOM y métricas
        │
        ▼
-  doDownload(): 1 archivo → descarga directa, N archivos → JSZip (selectivo o mixto)
+  doDownload(): 1 archivo → descarga directa (.jpg si se convirtió), N archivos → JSZip (selectivo o mixto)
 ```
 
 ### Detalle WASM
 
-- **Wrappers JPEG (MozJPEG y Jpegli)**: Siguen un patrón optimizado de streaming por bloques de **16 scanlines** (`MOZ_CHUNK_LINES 16` / `JPEGLI_CHUNK_LINES 16`) directamente entre descompresión y compresión, eliminando búferes RGB intermedios de imagen completa en el heap y optimizando el uso de caché L1/L2.
+- **Wrappers JPEG (MozJPEG y Jpegli)**: Siguen un patrón optimizado de streaming por bloques de **16 scanlines** (`MOZ_CHUNK_LINES 16` / `JPEGLI_CHUNK_LINES 16`). Soportan dos modos de entrada según `raw_width` y `raw_height`:
+  - **Modo JPEG stream (`raw_width == 0`)**: Descomprime el stream JPEG de entrada y recompone scanlines directamente hacia el codificador en bloques de 16 líneas.
+  - **Modo RAW RGBA (`raw_width > 0`)**: Utilizado para PNGs opacos convertidos a JPG. Configura `cinfo_out.in_color_space = JCS_EXT_RGBA` e `input_components = 4`, alimentando scanlines directamente desde el búfer de píxeles sin paso de descompresión previa ni conversión intermedia con pérdida por canvas.
 - **Wrapper PNG (libimagequant + LodePNG)**: Decodifica el PNG de entrada a RGBA32 crudo en memoria (`lodepng_decode32`), configura atributos de cuantización (`liq_attr`), crea la imagen con corrección gamma, posterización y transparencia, ejecuta la cuantización (`liq_image_quantize`), aplica tramado Floyd-Steinberg (`liq_set_dithering_level`), remapea los píxeles a índices de 8 bits y empaqueta el contenedor con LodePNG configurando estrategia de filtrado, ventana LZ77 de 32 KB, nicematch 258 y profundidad de bits adaptativa (1, 2, 4 u 8 bits).
 - **Structs de retorno**: JS lee el struct del heap WASM tras `ALLOW_MEMORY_GROWTH=1`. JPEG usa struct de 8 bytes (`ptr@0`, `size@4`). libimagequant usa struct de 24 bytes alineados (`ptr@0`, `size@4`, `attainedQuality@8`, `paletteColors@12`, `outputBitDepth@16`, `mseError@20`).
 

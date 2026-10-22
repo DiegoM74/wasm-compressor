@@ -24,7 +24,7 @@ La mayoría de herramientas de compresión de imágenes requieren instalar softw
 - **Configuración avanzada y Guía interactiva**: Modales dedicadas organizadas en acordeones temáticos y guías interactivas con documentación técnica, pros, contras y valores recomendados. Los botones `(i)` junto a cada ajuste permiten saltar directamente al ítem correspondiente con animación de resaltado.
 - **Métricas de calidad en tiempo real**: Muestra el porcentaje de compresión, tamaño exacto, calidad visual obtenida (0–100) y número final de colores en la paleta directamente en la tarjeta de cada archivo.
 - **Comparación visual A/B con soporte de transparencia**: Visor interactivo con división por slider, zoom sincrónico hasta 8x y fondo ajedrezado para inspeccionar bordes translúcidos en PNGs.
-- **Detección inteligente de PNGs opacos**: Sugiere convertir PNGs sin canal alfa a JPEG para obtener ahorros adicionales masivos en fotos, con memoria de preferencia para la sesión.
+- **Detección inteligente de PNGs opacos sin doble compresión**: Sugiere optimizar PNGs sin canal alfa mediante MozJPEG o Jpegli transmitiendo los píxeles crudos (RGBA) directamente al encoder WASM sin conversiones intermedias por canvas con pérdida. El archivo PNG original se conserva íntegro para la comparación visual A/B y cálculo de ahorro real, exportando el resultado en `.jpg`.
 - **Accesibilidad integral (WAI-ARIA)**: Soporte completo para lectores de pantalla, navegación fluida por teclado, feedback visual instantáneo de errores y respeto por `prefers-reduced-motion`.
 
 ## Uso

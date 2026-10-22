@@ -37,17 +37,25 @@ self.onmessage = function (e) {
     return;
   }
 
-  const { imageBuffer } = e.data;
+  const { imageBuffer, width = 0, height = 0, isRaw = false } = e.data;
 
   // Validaciones tempranas antes de extraer el resto de parámetros
   if (!imageBuffer || imageBuffer.byteLength === 0) {
     self.postMessage({ type: "error", message: "Buffer vacío" });
     return;
   }
-  const magic = new Uint8Array(imageBuffer, 0, 2);
-  if (magic[0] !== 0xff || magic[1] !== 0xd8) {
-    self.postMessage({ type: "error", message: "No es un JPEG válido" });
-    return;
+
+  if (isRaw) {
+    if (width <= 0 || height <= 0 || imageBuffer.byteLength !== width * height * 4) {
+      self.postMessage({ type: "error", message: "Dimensiones o búfer RGBA inválidos" });
+      return;
+    }
+  } else {
+    const magic = new Uint8Array(imageBuffer, 0, 2);
+    if (magic[0] !== 0xff || magic[1] !== 0xd8) {
+      self.postMessage({ type: "error", message: "No es un JPEG válido" });
+      return;
+    }
   }
 
   // ── Parámetros con valores por defecto ──
@@ -103,9 +111,14 @@ self.onmessage = function (e) {
       inputPtr,
     );
 
+    const rawWidth = isRaw ? width : 0;
+    const rawHeight = isRaw ? height : 0;
+
     const resultStructPtr = Module._compress_image(
       inputPtr,
       imageBuffer.byteLength,
+      rawWidth,
+      rawHeight,
       quality,
       progressive,
       optimize_coding,

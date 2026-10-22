@@ -246,10 +246,10 @@ function openCompareModal(fileId) {
 
   initCompareModal();
 
-  // Activar o desactivar fondo ajedrezado para transparencia si es PNG
+  // Activar o desactivar fondo ajedrezado para transparencia si es PNG con canal alfa
   const container = document.getElementById("compare-container");
   if (container) {
-    container.classList.toggle("is-transparent", !!file.isPng);
+    container.classList.toggle("is-transparent", !!(file.isPng && file.hasAlpha));
   }
 
   renderSelectors(versions);

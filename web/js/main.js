@@ -160,8 +160,8 @@ function updateUI() {
 
   const validFiles = filesData.filter((f) => !f.isUnsupported);
   const hasFiles = validFiles.length > 0;
-  const hasJpegs = validFiles.some((f) => !f.isPng);
-  const hasPngs = validFiles.some((f) => f.isPng);
+  const hasJpegs = validFiles.some((f) => !f.isPng || f.convertToJpeg);
+  const hasPngs = validFiles.some((f) => f.isPng && !f.convertToJpeg);
 
   // Botones de compresión (solo se tocan cuando no estamos comprimiendo)
   if (!isCompressing) {
@@ -198,7 +198,7 @@ function updateUI() {
       const compareBtn = actionsDiv.querySelector(".compare-btn");
       const deleteBtn = actionsDiv.querySelector(".delete-btn");
       if (compareBtn) {
-        const canCompare = f.isPng
+        const canCompare = (f.isPng && !f.convertToJpeg)
           ? !!f.imagequantBuffer
           : !!(f.mozjpegBuffer || f.jpegliBuffer);
         compareBtn.disabled = isCompressing || !canCompare;
@@ -397,11 +397,14 @@ function initWorkers() {
 }
 
 // ── Compresión con MozJPEG vía WorkerPool ──
-function compressImageMoz(buffer) {
+function compressImageMoz(buffer, width = 0, height = 0, isRaw = false) {
   const cfg = mozjpegConfig;
   return mozPool.runTask(
     {
       imageBuffer: buffer,
+      width,
+      height,
+      isRaw,
       quality: cfg.quality,
       progressive: cfg.progressive ? 1 : 0,
       optimize_coding: cfg.optimize_coding ? 1 : 0,
@@ -436,9 +439,9 @@ function compressImageMoz(buffer) {
 }
 
 // ── Compresión con Jpegli vía WorkerPool ──
-function compressImageJpegli(buffer) {
+function compressImageJpegli(buffer, width = 0, height = 0, isRaw = false) {
   return jpegliPool.runTask(
-    { imageBuffer: buffer, config: jpegliConfig },
+    { imageBuffer: buffer, config: jpegliConfig, width, height, isRaw },
     [buffer], // transferable: evita copiar el ArrayBuffer
   );
 }
@@ -546,21 +549,16 @@ function handleFiles(newFiles) {
       }
 
       // Si es PNG opaco y el usuario ya eligió recordar convertir a JPG
-      if (!hasAlpha && opaquePreference === "convert" && canvas) {
-        const jpegBlob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.95));
-        const jpegBuffer = await jpegBlob.arrayBuffer();
-        const baseName = file.name.replace(/\.png$/i, "");
-        const convertedFile = new File([jpegBlob], `${baseName}.jpg`, { type: "image/jpeg" });
-        URL.revokeObjectURL(previewUrl);
-
+      if (!hasAlpha && opaquePreference === "convert") {
         filesData.push({
           id: fileId,
-          originalFile: convertedFile,
-          originalBuffer: jpegBuffer,
-          originalSize: jpegBlob.size,
-          previewUrl: URL.createObjectURL(jpegBlob),
-          isPng: false,
+          originalFile: file,
+          originalBuffer,
+          originalSize: file.size,
+          previewUrl,
+          isPng: true,
           hasAlpha: false,
+          convertToJpeg: true,
           mozjpegBuffer: null,
           mozjpegSize: null,
           jpegliBuffer: null,
@@ -592,6 +590,7 @@ function handleFiles(newFiles) {
         previewUrl,
         isPng: true,
         hasAlpha,
+        convertToJpeg: false,
         mozjpegBuffer: null,
         mozjpegSize: null,
         jpegliBuffer: null,
@@ -608,8 +607,8 @@ function handleFiles(newFiles) {
       };
       filesData.push(fileEntry);
 
-      if (!hasAlpha && opaquePreference === null && canvas) {
-        pendingOpaquePngs.push({ fileEntry, canvas });
+      if (!hasAlpha && opaquePreference === null) {
+        pendingOpaquePngs.push({ fileEntry });
       }
 
       renderList();
@@ -625,21 +624,10 @@ function handleFiles(newFiles) {
           const count = pendingOpaquePngs.length;
           window.showOpaquePngModal(
             count,
-            async (remember) => {
+            (remember) => {
               if (remember) opaquePreference = "convert";
-              for (const { fileEntry, canvas } of pendingOpaquePngs) {
-                const jpegBlob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.95));
-                const jpegBuffer = await jpegBlob.arrayBuffer();
-                const baseName = fileEntry.originalFile.name.replace(/\.png$/i, "");
-                const convertedFile = new File([jpegBlob], `${baseName}.jpg`, { type: "image/jpeg" });
-                if (fileEntry.previewUrl) URL.revokeObjectURL(fileEntry.previewUrl);
-
-                fileEntry.originalFile = convertedFile;
-                fileEntry.originalBuffer = jpegBuffer;
-                fileEntry.originalSize = jpegBlob.size;
-                fileEntry.previewUrl = URL.createObjectURL(jpegBlob);
-                fileEntry.isPng = false;
-                fileEntry.hasAlpha = false;
+              for (const { fileEntry } of pendingOpaquePngs) {
+                fileEntry.convertToJpeg = true;
                 updateFileDOM(fileEntry);
               }
               pendingOpaquePngs.length = 0;
@@ -648,7 +636,13 @@ function handleFiles(newFiles) {
             },
             (remember) => {
               if (remember) opaquePreference = "keep";
+              for (const { fileEntry } of pendingOpaquePngs) {
+                fileEntry.convertToJpeg = false;
+                updateFileDOM(fileEntry);
+              }
               pendingOpaquePngs.length = 0;
+              renderList();
+              updateUI();
             },
           );
         }, 120);
@@ -712,7 +706,11 @@ function createFileElement(file) {
 
   const name = document.createElement("div");
   name.className = "image-name";
-  name.textContent = file.originalFile.name;
+  if (file.convertToJpeg) {
+    name.innerHTML = `${file.originalFile.name} <span class="badge-format" style="font-size:0.75em;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.08);color:var(--accent-secondary);margin-left:6px;">PNG → JPG</span>`;
+  } else {
+    name.textContent = file.originalFile.name;
+  }
 
   const stats = document.createElement("div");
   stats.className = "image-stats";
@@ -723,7 +721,7 @@ function createFileElement(file) {
   const compareBtn = document.createElement("button");
   compareBtn.className = "compare-btn";
   compareBtn.textContent = "Comparar";
-  const canCompare = file.isPng
+  const canCompare = (file.isPng && !file.convertToJpeg)
     ? !!file.imagequantBuffer
     : !!(file.mozjpegBuffer || file.jpegliBuffer);
   compareBtn.disabled = isCompressing || !canCompare;
@@ -771,6 +769,16 @@ function renderList() {
 function updateFileDOM(file) {
   const item = document.getElementById(`item-${file.id}`);
   if (!item) return;
+
+  const nameEl = item.querySelector(".image-name");
+  if (nameEl) {
+    if (file.convertToJpeg) {
+      nameEl.innerHTML = `${file.originalFile.name} <span class="badge-format" style="font-size:0.75em;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.08);color:var(--accent-secondary);margin-left:6px;">PNG → JPG</span>`;
+    } else {
+      nameEl.textContent = file.originalFile.name;
+    }
+  }
+
   const statsEl = item.querySelector(".image-stats");
   if (!statsEl) return;
 
@@ -783,7 +791,7 @@ function updateFileDOM(file) {
   }
   html += `</div>`;
 
-  if (file.isPng) {
+  if (file.isPng && !file.convertToJpeg) {
     if (file.imagequantSize) {
       const details = [];
       if (typeof file.imagequantQuality === "number" && file.imagequantQuality >= 0) {
@@ -816,7 +824,7 @@ function updateFileDOM(file) {
   if (actionsDiv) {
     const compareBtn = actionsDiv.querySelector(".compare-btn");
     if (compareBtn) {
-      const canCompare = file.isPng
+      const canCompare = (file.isPng && !file.convertToJpeg)
         ? !!file.imagequantBuffer
         : !!(file.mozjpegBuffer || file.jpegliBuffer);
       compareBtn.disabled = isCompressing || !canCompare;
@@ -828,7 +836,7 @@ function updateFileDOM(file) {
 function updateBestResult(f) {
   f.bestSize = f.bestBuffer = f.bestLib = null;
 
-  if (f.isPng) {
+  if (f.isPng && !f.convertToJpeg) {
     if (f.imagequantBuffer) {
       f.bestSize = f.imagequantSize;
       f.bestBuffer = f.imagequantBuffer;
@@ -854,13 +862,46 @@ function updateBestResult(f) {
   }
 }
 
+// Cache temporal durante la compresión para no decodificar el PNG dos veces si corren ambos motores
+const rawRgbaCache = new Map();
+
+async function getRawRgbaCached(fileId, file) {
+  if (!rawRgbaCache.has(fileId)) {
+    rawRgbaCache.set(
+      fileId,
+      (async () => {
+        const bitmap = await createImageBitmap(file);
+        const { width, height } = bitmap;
+        let buffer;
+        if (typeof OffscreenCanvas !== "undefined") {
+          const offscreen = new OffscreenCanvas(width, height);
+          const ctx = offscreen.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(bitmap, 0, 0);
+          buffer = ctx.getImageData(0, 0, width, height).data.buffer;
+        } else {
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(bitmap, 0, 0);
+          buffer = ctx.getImageData(0, 0, width, height).data.buffer;
+        }
+        bitmap.close();
+        return { buffer, width, height };
+      })(),
+    );
+  }
+  const res = await rawRgbaCache.get(fileId);
+  return { buffer: res.buffer.slice(0), width: res.width, height: res.height };
+}
+
 // ── Compresión ──
 async function doCompression(mode) {
   const validFiles = filesData.filter((f) => !f.isUnsupported);
   if (validFiles.length === 0) return;
 
-  const targetJpegs = validFiles.filter((f) => !f.isPng);
-  const targetPngs = validFiles.filter((f) => f.isPng);
+  const targetJpegs = validFiles.filter((f) => !f.isPng || f.convertToJpeg);
+  const targetPngs = validFiles.filter((f) => f.isPng && !f.convertToJpeg);
 
   if (mode === "mozjpeg" && targetJpegs.length === 0) {
     updateStatus("No hay imágenes JPEG para procesar con MozJPEG", "warning");
@@ -897,7 +938,13 @@ async function doCompression(mode) {
       ? Promise.allSettled(
           targetJpegs.map(async (f) => {
             try {
-              const res = await compressImageMoz(f.originalBuffer.slice(0));
+              let res;
+              if (f.convertToJpeg) {
+                const raw = await getRawRgbaCached(f.id, f.originalFile);
+                res = await compressImageMoz(raw.buffer, raw.width, raw.height, true);
+              } else {
+                res = await compressImageMoz(f.originalBuffer.slice(0), 0, 0, false);
+              }
               f.mozjpegBuffer = res.buffer;
               f.mozjpegSize = res.compressedSize;
               updateBestResult(f);
@@ -920,7 +967,13 @@ async function doCompression(mode) {
       ? Promise.allSettled(
           targetJpegs.map(async (f) => {
             try {
-              const res = await compressImageJpegli(f.originalBuffer.slice(0));
+              let res;
+              if (f.convertToJpeg) {
+                const raw = await getRawRgbaCached(f.id, f.originalFile);
+                res = await compressImageJpegli(raw.buffer, raw.width, raw.height, true);
+              } else {
+                res = await compressImageJpegli(f.originalBuffer.slice(0), 0, 0, false);
+              }
               f.jpegliBuffer = res.buffer;
               f.jpegliSize = res.compressedSize;
               updateBestResult(f);
@@ -966,6 +1019,7 @@ async function doCompression(mode) {
       : Promise.resolve();
 
   await Promise.all([mozPromise, jpegliPromise, imagequantPromise]);
+  rawRgbaCache.clear();
 
   const successCount = validFiles.filter((f) => f.bestBuffer).length;
   isCompressing = false;
@@ -987,7 +1041,11 @@ async function doCompression(mode) {
 // Tabla de acceso a buffers según el modo de descarga
 const BUFFER_GETTER = {
   general: (f) =>
-    f.bestBuffer && { buffer: f.bestBuffer, lib: f.bestLib, isPng: f.isPng },
+    f.bestBuffer && {
+      buffer: f.bestBuffer,
+      lib: f.bestLib,
+      isPng: f.bestLib === "libimagequant",
+    },
   mozjpeg: (f) =>
     f.mozjpegBuffer && { buffer: f.mozjpegBuffer, lib: "MozJPEG", isPng: false },
   jpegli: (f) =>
@@ -1029,7 +1087,14 @@ async function executeDownload(filesToDownload, modeName) {
   updateStatus("Generando ZIP...", "warning");
   try {
     const zip = new JSZip();
-    filesToDownload.forEach((f) => zip.file(f.name, f.buffer));
+    filesToDownload.forEach((f) => {
+      const base =
+        f.name.lastIndexOf(".") > 0
+          ? f.name.slice(0, f.name.lastIndexOf("."))
+          : f.name;
+      const ext = f.isPng ? "png" : "jpg";
+      zip.file(`${base}.${ext}`, f.buffer);
+    });
     const url = URL.createObjectURL(await zip.generateAsync({ type: "blob" }));
     triggerDownload(url, `compressed-${modeName}.zip`);
     updateStatus(`¡ZIP ${modeName} descargado!`, "success");
@@ -1060,7 +1125,10 @@ async function doDownload(mode) {
   // Comprobar si hay archivos comprimidos del otro formato en la lista
   const isTargetPng = mode === "imagequant";
   const otherFormatFiles = filesData
-    .filter((f) => (isTargetPng ? !f.isPng : f.isPng))
+    .filter((f) => {
+      const isPngFile = f.isPng && !f.convertToJpeg;
+      return isTargetPng ? !isPngFile : isPngFile;
+    })
     .map((f) => ({ name: f.originalFile.name, ...BUFFER_GETTER.general(f) }))
     .filter((f) => f.buffer);
 
